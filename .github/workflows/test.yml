@@ -24,7 +24,7 @@ jobs:
       windows-latest: ${{ steps.uuid.outputs.windows-latest-id }}
   e2etest:
     name: End-to-end tests (${{ matrix.shard }})
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.platform }}
     needs: [generate-test-run-id]
     strategy:
       # GH cancels other matrixed jobs by default if one fails. We want all E2E jobs to complete.
