@@ -2,7 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at <http://mozilla.org/MPL/2.0/>. */
 
-import React, { Component, useRef } from "react";
+
+import { useRef, useCallback } from "react";
 import { ConnectedProps, connect } from "react-redux";
 
 import KeyShortcuts from "devtools/client/shared/key-shortcuts";
@@ -26,30 +27,33 @@ const connector = connect(mapStateToProps, {
 type PropsFromRedux = ConnectedProps<typeof connector>;
 type DebuggerProps = PropsFromRedux & { wrapper: HTMLDivElement };
 
-class Debugger extends Component<DebuggerProps> {
-  shortcuts = new KeyShortcuts({ window, target: this.props.wrapper });
+const Debugger = (props: DebuggerProps) => {
 
-  // Important so that the tabs chevron updates appropriately when
-  // the user resizes the left or right columns
-  triggerEditorPaneResize() {
+
+    
+
+    const shortcuts = useRef(new KeyShortcuts({ window, target: props.wrapper }));
+    // the user resizes the left or right columns
+    const triggerEditorPaneResizeHandler = useCallback(() => {
     const editorPane = window.document.querySelector(".editor-pane");
     if (editorPane) {
       editorPane.dispatchEvent(new Event("resizeend"));
     }
-  }
+  }, []);
 
-  render() {
     return (
-      <ShortcutsContext.Provider value={this.shortcuts}>
+      <ShortcutsContext.Provider value={shortcuts.current}>
         <>
           <A11yIntention>
             <EditorPane />
           </A11yIntention>
         </>
       </ShortcutsContext.Provider>
-    );
-  }
-}
+    ); 
+};
+
+
+
 
 function DebuggerLoader(props: any) {
   const wrapperNode = useRef<HTMLDivElement>(null);

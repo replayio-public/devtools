@@ -1,7 +1,8 @@
 // NOTE: This file has a ton of logic copied from the Redux DevTools packages
 
+
 import classnames from "classnames";
-import React, { Component } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { JSONTree } from "react-json-tree";
 import type { LabelRenderer, ShouldExpandNodeInitially } from "react-json-tree";
 
@@ -136,61 +137,37 @@ interface State {
   data: any;
 }
 
-export class JSONDiff extends Component<Props, State> {
-  state: State = { data: {} };
+export export const JSONDiff = (props: Props) => {
 
-  componentDidMount() {
-    this.updateData();
-  }
 
-  componentDidUpdate(prevProps: Props) {
-    if (prevProps.delta !== this.props.delta) {
-      this.updateData();
+    const [data, setData] = useState({});
+
+    useEffect(() => {
+    updateDataHandler();
+  }, []);
+    useEffect(() => {
+    if (prevProps.delta !== props.delta) {
+      updateDataHandler();
     }
-  }
-
-  updateData() {
+  }, []);
+    const updateDataHandler = useCallback(() => {
     // this magically fixes weird React error, where it can't find a node in tree
     // if we set `delta` as JSONTree data right away
     // https://github.com/alexkuz/redux-devtools-inspector/issues/17
 
-    this.setState({ data: this.props.delta });
-  }
-
-  render() {
-    const { styling, base16Theme, ...props } = this.props;
-
-    if (!this.state.data) {
-      return <div {...styling("stateDiffEmpty")}>(states are equal)</div>;
-    }
-
-    return (
-      <JSONTree
-        {...props}
-        theme={getJsonTreeTheme(base16Theme)}
-        data={this.state.data}
-        getItemString={this.getItemString}
-        valueRenderer={this.valueRenderer}
-        postprocessValue={prepareDelta}
-        isCustomNode={Array.isArray}
-        shouldExpandNodeInitially={expandFirstLevel}
-        hideRoot
-      />
-    );
-  }
-
-  getItemString = (type: string, data: any) =>
+    setData(props.delta);
+  }, []);
+    const getItemStringHandler = useCallback((type: string, data: any) =>
     getItemString(
-      this.props.styling,
+      props.styling,
       type,
       data,
-      this.props.dataTypeKey,
-      this.props.isWideLayout,
+      props.dataTypeKey,
+      props.isWideLayout,
       true
-    );
-
-  valueRenderer = (raw: any, value: any) => {
-    const { styling, isWideLayout } = this.props;
+    ), [data]);
+    const valueRendererHandler = useCallback((raw: any, value: any) => {
+    const { styling, isWideLayout } = props;
 
     function renderSpan(name: string, body: string) {
       return (
@@ -226,5 +203,28 @@ export class JSONDiff extends Component<Props, State> {
     }
 
     return raw;
-  };
-}
+  }, []);
+
+    const { styling, base16Theme, ...props } = props;
+
+    if (!data) {
+      return <div {...styling("stateDiffEmpty")}>(states are equal)</div>;
+    }
+
+    return (
+      <JSONTree
+        {...props}
+        theme={getJsonTreeTheme(base16Theme)}
+        data={data}
+        getItemString={getItemStringHandler}
+        valueRenderer={valueRendererHandler}
+        postprocessValue={prepareDelta}
+        isCustomNode={Array.isArray}
+        shouldExpandNodeInitially={expandFirstLevel}
+        hideRoot
+      />
+    ); 
+};
+
+
+

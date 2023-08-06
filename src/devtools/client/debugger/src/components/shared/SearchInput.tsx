@@ -4,8 +4,9 @@
 
 //
 
+
 import classnames from "classnames";
-import React, { Component } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 
 import AccessibleImage from "./AccessibleImage";
 import { CloseButton } from "./Button";
@@ -56,35 +57,32 @@ interface SearchInputProps {
   size: string;
 }
 
-class SearchInput extends Component<SearchInputProps> {
-  $input: HTMLInputElement | null = null;
+const SearchInput = (inputProps: SearchInputProps) => {
 
-  static defaultProps = {
+
+    const [history, setHistory] = useState([] as string[]);
+
+    const $input = useRef<HTMLInputElement | null>(null);
+    const props = { 
     className: "",
     expanded: false,
     hasPrefix: false,
     selectedItemId: "",
     size: "",
     showClose: true,
+    ...inputProps,
   };
-
-  state = {
-    history: [] as string[],
-  };
-
-  componentDidMount() {
-    this.setFocus();
-  }
-
-  componentDidUpdate(prevProps: SearchInputProps) {
-    if (this.props.shouldFocus && !prevProps.shouldFocus) {
-      this.setFocus();
+    useEffect(() => {
+    setFocusHandler();
+  }, []);
+    useEffect(() => {
+    if (props.shouldFocus && !prevProps.shouldFocus) {
+      setFocusHandler();
     }
-  }
-
-  setFocus() {
-    if (this.$input) {
-      const input = this.$input;
+  }, []);
+    const setFocusHandler = useCallback(() => {
+    if ($input.current) {
+      const input = $input.current;
       input.focus();
 
       if (!input.value) {
@@ -92,52 +90,47 @@ class SearchInput extends Component<SearchInputProps> {
       }
 
       // omit prefix @:# from being selected
-      const selectStartPos = this.props.hasPrefix ? 1 : 0;
+      const selectStartPos = props.hasPrefix ? 1 : 0;
       input.setSelectionRange(selectStartPos, input.value.length + 1);
     }
-  }
-
-  renderSvg() {
+  }, []);
+    const renderSvgHandler = useCallback(() => {
     return <AccessibleImage className="search" />;
-  }
-
-  renderArrowButtons() {
-    const { handleNext, handlePrev } = this.props;
+  }, []);
+    const renderArrowButtonsHandler = useCallback(() => {
+    const { handleNext, handlePrev } = props;
 
     return [
       arrowBtn(handlePrev, "arrow-up", classnames("nav-btn", "prev"), "Previous result"),
       arrowBtn(handleNext, "arrow-down", classnames("nav-btn", "next"), "Next result"),
     ];
-  }
-
-  onFocus = (e: React.FocusEvent<HTMLInputElement>) => {
-    const { onFocus } = this.props;
+  }, []);
+    const onFocusHandler = useCallback((e: React.FocusEvent<HTMLInputElement>) => {
+    const { onFocus } = props;
 
     if (onFocus) {
       onFocus(e as any);
     }
-  };
-
-  onBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    const { onBlur } = this.props;
+  }, []);
+    const onBlurHandler = useCallback((e: React.FocusEvent<HTMLInputElement>) => {
+    const { onBlur } = props;
 
     if (onBlur) {
       onBlur(e as any);
     }
-  };
-
-  onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    const { onHistoryScroll, onKeyDown } = this.props;
+  }, []);
+    const onKeyDownHandler = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    const { onHistoryScroll, onKeyDown } = props;
     if (!onHistoryScroll) {
       return onKeyDown(e);
     }
 
     const inputValue = (e.target as HTMLInputElement).value;
-    const { history } = this.state;
+    
     const currentHistoryIndex = history.indexOf(inputValue);
 
     if (e.key === "Enter") {
-      this.saveEnteredTerm(inputValue);
+      saveEnteredTermHandler(inputValue);
       return onKeyDown(e);
     }
 
@@ -158,46 +151,41 @@ class SearchInput extends Component<SearchInputProps> {
         onHistoryScroll(nextInHistory);
       }
     }
-  };
-
-  saveEnteredTerm(query: string) {
-    const { history } = this.state;
+  }, [history]);
+    const saveEnteredTermHandler = useCallback((query: string) => {
+    
     let newHistory = history.slice();
     const previousIndex = newHistory.indexOf(query);
     if (previousIndex !== -1) {
       newHistory.splice(previousIndex, 1);
     }
     newHistory.push(query);
-    this.setState({ history: newHistory });
-  }
-
-  renderSummaryMsg() {
-    const { summaryMsg } = this.props;
+    setHistory(newHistory);
+  }, [history]);
+    const renderSummaryMsgHandler = useCallback(() => {
+    const { summaryMsg } = props;
 
     if (!summaryMsg) {
       return null;
     }
 
     return <div className="search-field-summary">{summaryMsg}</div>;
-  }
-
-  renderSpinner() {
-    const { isLoading } = this.props;
+  }, []);
+    const renderSpinnerHandler = useCallback(() => {
+    const { isLoading } = props;
     if (isLoading) {
       return <AccessibleImage className="loader spin" />;
     }
-  }
-
-  renderNav() {
-    const { count, handleNext, handlePrev } = this.props;
+  }, []);
+    const renderNavHandler = useCallback(() => {
+    const { count, handleNext, handlePrev } = props;
     if ((!handleNext && !handlePrev) || !count || count == 1) {
       return;
     }
 
-    return <div className="search-nav-buttons">{this.renderArrowButtons()}</div>;
-  }
+    return <div className="search-nav-buttons">{renderArrowButtonsHandler()}</div>;
+  }, []);
 
-  render() {
     const {
       className,
       dataTestId,
@@ -211,7 +199,7 @@ class SearchInput extends Component<SearchInputProps> {
       showErrorEmoji,
       size,
       showClose,
-    } = this.props;
+    } = props;
 
     const inputProps = {};
 
@@ -224,33 +212,35 @@ class SearchInput extends Component<SearchInputProps> {
           aria-owns="result-list"
           aria-expanded={expanded}
         >
-          {this.renderSvg()}
+          {renderSvgHandler()}
           <input
             className={classnames({
               empty: showErrorEmoji,
             })}
             data-test-id={dataTestId}
             onChange={onChange}
-            onKeyDown={this.onKeyDown}
+            onKeyDown={onKeyDownHandler}
             onKeyUp={onKeyUp}
-            onFocus={this.onFocus}
-            onBlur={this.onBlur}
+            onFocus={onFocusHandler}
+            onBlur={onBlurHandler}
             aria-autocomplete={"list" as const}
             aria-controls={"result-list" as const}
             aria-activedescendant={expanded && selectedItemId ? `${selectedItemId}-title` : ""}
             placeholder={placeholder}
             value={query}
             spellCheck={false}
-            ref={(c: HTMLInputElement | null) => (this.$input = c)}
+            ref={(c: HTMLInputElement | null) => ($input.current = c)}
           />
-          {this.renderSpinner()}
-          {this.renderSummaryMsg()}
-          {this.renderNav()}
+          {renderSpinnerHandler()}
+          {renderSummaryMsgHandler()}
+          {renderNavHandler()}
           {showClose && <CloseButton handleClick={handleClose} buttonClass={size} tooltip="" />}
         </div>
       </div>
-    );
-  }
-}
+    ); 
+};
+
+
+
 
 export default SearchInput;

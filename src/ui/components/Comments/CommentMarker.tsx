@@ -1,5 +1,5 @@
-import classnames from "classnames";
-import React from "react";
+
+import React, { useCallback } from 'react';
 import { ConnectedProps, connect } from "react-redux";
 
 import { actions } from "ui/actions";
@@ -17,9 +17,13 @@ interface CommentMarkerProps extends PropsFromRedux {
   isPrimaryHighlighted: boolean;
 }
 
-class CommentMarker extends React.Component<CommentMarkerProps> {
-  calculateLeftOffset(time: number) {
-    const { timelineDimensions, zoomRegion } = this.props;
+const CommentMarker = (props: CommentMarkerProps) => {
+
+
+    
+
+    const calculateLeftOffsetHandler = useCallback((time: number) => {
+    const { timelineDimensions, zoomRegion } = props;
 
     return getMarkerLeftOffset({
       time: time,
@@ -27,25 +31,22 @@ class CommentMarker extends React.Component<CommentMarkerProps> {
       zoom: zoomRegion,
       markerWidth: markerWidth,
     });
-  }
-
-  getCommentAtTime() {
-    const { comments, currentTime } = this.props;
+  }, []);
+    const getCommentAtTimeHandler = useCallback(() => {
+    const { comments, currentTime } = props;
     const index = comments.findIndex(comment => comment.time === currentTime);
 
     return comments[index];
-  }
-
-  onClick = (e: React.MouseEvent) => {
+  }, []);
+    const onClickHandler = useCallback((e: React.MouseEvent) => {
     // This should not count as a click on the timeline, which would seek to a particular time.
     e.stopPropagation();
-    const { comment, seekToComment } = this.props;
+    const { comment, seekToComment } = props;
     trackEvent("timeline.comment_select");
     seekToComment(comment, comment.sourceLocation, false);
-  };
+  }, []);
 
-  render() {
-    const { comment, currentTime, zoomRegion, isPrimaryHighlighted } = this.props;
+    const { comment, currentTime, zoomRegion, isPrimaryHighlighted } = props;
 
     const { time } = comment;
 
@@ -62,13 +63,15 @@ class CommentMarker extends React.Component<CommentMarkerProps> {
           "primary-highlight": isPrimaryHighlighted,
         })}
         style={{
-          left: `${this.calculateLeftOffset(time)}%`,
+          left: `${calculateLeftOffsetHandler(time)}%`,
         }}
-        onClick={this.onClick}
+        onClick={onClickHandler}
       />
-    );
-  }
-}
+    ); 
+};
+
+
+
 
 const connector = connect(
   (state: UIState) => ({

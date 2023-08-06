@@ -2,68 +2,63 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at <http://mozilla.org/MPL/2.0/>. */
 
-import classnames from "classnames";
+
 //
-import React, { Component } from "react";
+import { useState, useRef, useCallback } from "react";
 
-export class Dropdown extends Component {
-  toggleDropdown;
+export export const Dropdown = (inputProps) => {
 
-  state = {
-    dropdownShown: false,
-  };
 
-  static defaultProps = {
+    const [dropdownShown, setDropdownShown] = useState(false);
+
+    const toggleDropdown = useRef();
+    const props = { 
     panelStyles: {},
+    ...inputProps,
   };
-
-  toggleDropdown = e => {
-    this.setState(prevState => ({
-      dropdownShown: !prevState.dropdownShown,
-    }));
-  };
-
-  renderPanel() {
-    const { panelStyles } = this.props;
+    const toggleDropdownHandler = useCallback(e => {
+    setDropdownShown(!prevState.dropdownShown);
+  }, []);
+    const renderPanelHandler = useCallback(() => {
+    const { panelStyles } = props;
     return (
       <div
         className="dropdown"
-        onClick={this.toggleDropdown}
-        style={{ display: this.state.dropdownShown ? "block" : "none", ...panelStyles }}
+        onClick={toggleDropdown.current}
+        style={{ display: dropdownShown ? "block" : "none", ...panelStyles }}
       >
-        {this.props.panel}
+        {props.panel}
       </div>
     );
-  }
-
-  renderButton() {
+  }, [dropdownShown]);
+    const renderButtonHandler = useCallback(() => {
     return (
       // eslint-disable-next-line prettier/prettier
-      <button className="dropdown-button" onClick={this.toggleDropdown}>
-        {this.props.icon}
+      <button className="dropdown-button" onClick={toggleDropdown.current}>
+        {props.icon}
       </button>
     );
-  }
-
-  renderMask() {
+  }, []);
+    const renderMaskHandler = useCallback(() => {
     return (
       <div
         className="dropdown-mask"
-        onClick={this.toggleDropdown}
-        style={{ display: this.state.dropdownShown ? "block" : "none" }}
+        onClick={toggleDropdown.current}
+        style={{ display: dropdownShown ? "block" : "none" }}
       />
     );
-  }
+  }, [dropdownShown]);
 
-  render() {
     return (
-      <div className={classnames("dropdown-block", { open: this.state.dropdownShown })}>
-        {this.renderPanel()}
-        {this.renderButton()}
-        {this.renderMask()}
+      <div className={classnames("dropdown-block", { open: dropdownShown })}>
+        {renderPanelHandler()}
+        {renderButtonHandler()}
+        {renderMaskHandler()}
       </div>
-    );
-  }
-}
+    ); 
+};
+
+
+
 
 export default Dropdown;

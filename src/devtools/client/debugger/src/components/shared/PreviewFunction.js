@@ -2,20 +2,24 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at <http://mozilla.org/MPL/2.0/>. */
 
+
 import flatten from "lodash/flatten";
 import times from "lodash/times";
 import zip from "lodash/zip";
-import React, { Component } from "react";
+import { useCallback } from "react";
 
 import { RedactedSpan } from "ui/components/Redacted";
 
-export default class PreviewFunction extends Component {
-  renderFunctionName(func) {
+export default export const PreviewFunction = (props) => {
+
+
+    
+
+    const renderFunctionNameHandler = useCallback((func) => {
     const name = (func.functionName ? func.functionName() : func.name) || "<anonymous>";
     return <span className="function-name">{name}</span>;
-  }
-
-  renderParams(func) {
+  }, []);
+    const renderParamsHandler = useCallback((func) => {
     const parameterNames =
       (func.functionParameterNames ? func.functionParameterNames() : func.parameterNames) || [];
 
@@ -34,9 +38,8 @@ export default class PreviewFunction extends Component {
     ));
 
     return flatten(zip(params, commas));
-  }
+  }, []);
 
-  render() {
     const { func } = this.props;
     return (
       <RedactedSpan className="function-signature">
@@ -45,6 +48,8 @@ export default class PreviewFunction extends Component {
         {this.renderParams(func)}
         <span className="paren">)</span>
       </RedactedSpan>
-    );
-  }
-}
+    ); 
+};
+
+
+
