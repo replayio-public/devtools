@@ -4,14 +4,15 @@
 
 //
 
+
 import {
-  Location,
-  PointDescription,
-  SourceLocation,
-  getSourceOutlineResult,
+    Location,
+    PointDescription,
+    SourceLocation,
+    getSourceOutlineResult,
 } from "@replayio/protocol";
 import classnames from "classnames";
-import React, { Component, Suspense, useContext } from "react";
+import React, { useState, useRef, useEffect, useCallback, Suspense, useContext } from "react";
 import ReactTooltip from "react-tooltip";
 
 import { locationsInclude } from "protocol/utils";
@@ -21,10 +22,10 @@ import { ReplayClientContext } from "shared/client/ReplayClientContext";
 import { userData } from "shared/user-data/GraphQL/UserData";
 import { actions } from "ui/actions";
 import {
-  SourcesState,
-  getPreferredLocation,
-  getSelectedLocation,
-  getSelectedSource,
+    SourcesState,
+    getPreferredLocation,
+    getSelectedLocation,
+    getSelectedSource,
 } from "ui/reducers/sources";
 import { useAppDispatch, useAppSelector } from "ui/setup/hooks";
 import { trackEvent } from "ui/utils/telemetry";
@@ -57,45 +58,42 @@ interface FrameTimelineProps {
   sourcesState: SourcesState;
 }
 
-class FrameTimelineRenderer extends Component<FrameTimelineProps, FrameTimelineState> {
-  _timeline = React.createRef<HTMLDivElement>();
+const FrameTimelineRenderer = (props: FrameTimelineProps) => {
 
-  state = {
-    scrubbing: false,
-    scrubbingProgress: 0,
-    lastDisplayIndex: 0,
-  };
 
-  componentDidUpdate(prevProps: FrameTimelineProps, prevState: FrameTimelineState) {
+    const [scrubbing, setScrubbing] = useState(false);
+    const [scrubbingProgress, setScrubbingProgress] = useState(0);
+    const [lastDisplayIndex, setLastDisplayIndex] = useState(0);
+
+    const _timeline = useRef<HTMLDivElement>();
+    useEffect(() => {
     if (!document.body) {
       return;
     }
 
     const bodyClassList = document.body.classList;
 
-    if (this.state.scrubbing && !prevState.scrubbing) {
-      document.addEventListener("mousemove", this.onMouseMove);
-      document.addEventListener("mouseup", this.onMouseUp);
+    if (scrubbing && !prevState.scrubbing) {
+      document.addEventListener("mousemove", onMouseMoveHandler);
+      document.addEventListener("mouseup", onMouseUpHandler);
       bodyClassList.add("scrubbing");
     }
-    if (!this.state.scrubbing && prevState.scrubbing) {
-      document.removeEventListener("mousemove", this.onMouseMove);
-      document.removeEventListener("mouseup", this.onMouseUp);
+    if (!scrubbing && prevState.scrubbing) {
+      document.removeEventListener("mousemove", onMouseMoveHandler);
+      document.removeEventListener("mouseup", onMouseUpHandler);
       bodyClassList.remove("scrubbing");
     }
-  }
-
-  getProgress(clientX: number) {
-    const rect = getBoundingClientRect(this._timeline.current || undefined);
+  }, [scrubbing]);
+    const getProgressHandler = useCallback((clientX: number) => {
+    const rect = getBoundingClientRect(_timeline.current || undefined);
     if (!rect) {
       return 0;
     }
     const progress = ((clientX - rect.left) / rect.width) * 100;
     return Math.min(Math.max(progress, 0), 100);
-  }
-
-  getPosition(progress: number) {
-    const { frameSteps, symbols, selectedLocation } = this.props;
+  }, []);
+    const getPosition = useMemo(() => {
+    const { frameSteps, symbols, selectedLocation } = props;
     if (!frameSteps) {
       return;
     }
@@ -124,53 +122,49 @@ class FrameTimelineRenderer extends Component<FrameTimelineProps, FrameTimelineS
       }
     }
 
-    this.setState({ lastDisplayIndex: adjustedDisplayIndex });
+    setLastDisplayIndex(adjustedDisplayIndex);
 
     return frameSteps[adjustedDisplayIndex];
-  }
+  }, []);
+    const displayPreviewHandler = useCallback((progress: number) => {
+    const { setPreviewPausedLocation, sourcesState } = props;
 
-  displayPreview(progress: number) {
-    const { setPreviewPausedLocation, sourcesState } = this.props;
-
-    const frameStep = this.getPosition(progress);
+    const frameStep = getPosition(progress);
 
     if (frameStep?.frame) {
       setPreviewPausedLocation(getPreferredLocation(sourcesState, frameStep.frame));
     }
-  }
-
-  onMouseDown = (event: React.MouseEvent) => {
-    if (!this.props.frameSteps) {
+  }, []);
+    const onMouseDownHandler = useCallback((event: React.MouseEvent) => {
+    if (!props.frameSteps) {
       return null;
     }
 
-    const progress = this.getProgress(event.clientX);
+    const progress = getProgressHandler(event.clientX);
     trackEvent("frame_timeline.start");
-    this.setState({ scrubbing: true, scrubbingProgress: progress });
-  };
+    setScrubbing(true);
+    setScrubbingProgress(progress);
+  }, []);
+    const onMouseUpHandler = useCallback((event: MouseEvent) => {
+    const { seek } = props;
 
-  onMouseUp = (event: MouseEvent) => {
-    const { seek } = this.props;
-
-    const progress = this.getProgress(event.clientX);
-    const position = this.getPosition(progress);
-    this.setState({ scrubbing: false });
+    const progress = getProgressHandler(event.clientX);
+    const position = getPosition(progress);
+    setScrubbing(false);
 
     if (position) {
       seek(position.point, position.time, true);
     }
-  };
+  }, []);
+    const onMouseMoveHandler = useCallback((event: MouseEvent) => {
+    const progress = getProgressHandler(event.clientX);
 
-  onMouseMove = (event: MouseEvent) => {
-    const progress = this.getProgress(event.clientX);
-
-    this.displayPreview(progress);
-    this.setState({ scrubbingProgress: progress });
-  };
-
-  getVisibleProgress() {
-    const { scrubbing, scrubbingProgress, lastDisplayIndex } = this.state;
-    const { frameSteps, selectedLocation, executionPoint } = this.props;
+    displayPreviewHandler(progress);
+    setScrubbingProgress(progress);
+  }, []);
+    const getVisibleProgressHandler = useCallback(() => {
+    
+    const { frameSteps, selectedLocation, executionPoint } = props;
 
     if (!frameSteps) {
       return 0;
@@ -199,12 +193,11 @@ class FrameTimelineRenderer extends Component<FrameTimelineProps, FrameTimelineS
     }
 
     return Math.floor((filteredSteps.length / frameSteps.length) * 100);
-  }
+  }, [scrubbing, scrubbingProgress, lastDisplayIndex]);
 
-  render() {
-    const { scrubbing } = this.state;
-    const { frameSteps } = this.props;
-    const progress = this.getVisibleProgress();
+    
+    const { frameSteps } = props;
+    const progress = getVisibleProgressHandler();
 
     return (
       <div
@@ -212,7 +205,7 @@ class FrameTimelineRenderer extends Component<FrameTimelineProps, FrameTimelineS
         data-for="frame-timeline-tooltip"
         className={classnames("frame-timeline-container", { scrubbing, paused: frameSteps })}
       >
-        <div className="frame-timeline-bar" onMouseDown={this.onMouseDown} ref={this._timeline}>
+        <div className="frame-timeline-bar" onMouseDown={onMouseDownHandler} ref={_timeline.current}>
           <div
             className="frame-timeline-progress"
             style={{ width: `${progress}%`, maxWidth: "calc(100% - 2px)" }}
@@ -222,9 +215,11 @@ class FrameTimelineRenderer extends Component<FrameTimelineProps, FrameTimelineS
           <ReactTooltip id="frame-timeline-tooltip" delayHide={200} delayShow={200} place={"top"} />
         )}
       </div>
-    );
-  }
-}
+    ); 
+};
+
+
+
 
 function FrameTimeline() {
   const replayClient = useContext(ReplayClientContext);

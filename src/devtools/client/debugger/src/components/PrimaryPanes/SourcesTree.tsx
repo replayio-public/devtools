@@ -5,7 +5,8 @@
 //
 
 // Dependencies
-import React, { Component, useEffect } from "react";
+
+import { useEffect, useState, useCallback } from "react";
 import { ConnectedProps, connect } from "react-redux";
 
 import { focusItem, setExpandedState } from "devtools/client/debugger/src/actions/source-tree";
@@ -13,31 +14,30 @@ import { selectSource } from "devtools/client/debugger/src/actions/sources/selec
 // Selectors
 import { getContext } from "devtools/client/debugger/src/reducers/pause";
 import {
-  getExpandedState,
-  getFocusedSourceItem,
+    getExpandedState,
+    getFocusedSourceItem,
 } from "devtools/client/debugger/src/reducers/source-tree";
 import { getShownSource } from "devtools/client/debugger/src/reducers/ui";
 import { useNag } from "replay-next/src/hooks/useNag";
 import { Nag } from "shared/graphql/types";
 import {
-  SourceDetails,
-  getSelectedSource,
-  getSourceDetailsCount,
-  getSourcesLoading,
-  getSourcesToDisplayByUrl,
+    SourceDetails,
+    getSelectedSource,
+    getSourceDetailsCount,
+    getSourcesLoading,
+    getSourcesToDisplayByUrl,
 } from "ui/reducers/sources";
 import type { UIState } from "ui/state";
 import { trackEvent } from "ui/utils/telemetry";
 
 // Utils
 import {
-  SourcesMap,
-  createTree,
-  getDirectories,
-  getSourceFromNode,
-  isDirectory,
-  nodeHasChildren,
-  updateTree,
+    SourcesMap,
+    createTree,
+    getDirectories,
+    getSourceFromNode,
+    isDirectory,
+    nodeHasChildren
 } from "../../utils/sources-tree";
 import { TreeDirectory, TreeNode } from "../../utils/sources-tree/types";
 import ManagedTree from "../shared/ManagedTree";
@@ -94,95 +94,77 @@ interface STState {
   highlightItems?: TreeNode[];
 }
 
-class SourcesTree extends Component<PropsFromRedux, STState> {
-  constructor(props: PropsFromRedux) {
-    super(props);
-    const { sources } = this.props;
-
+const SourcesTree = (props: PropsFromRedux) => {
+const { sources } = props;
     const state = createTree({
       sources: sources as SourcesMap,
     }) as STState;
-
-    if (props.shownSource) {
-      const listItems = getDirectories(props.shownSource, state.sourceTree as TreeDirectory);
-      state.listItems = listItems;
-    }
-
-    if (props.selectedSource) {
-      const highlightItems = getDirectories(
+    const listItems = getDirectories(props.shownSource, state.sourceTree as TreeDirectory);
+    const highlightItems = getDirectories(
         props.selectedSource,
         state.sourceTree as TreeDirectory
       );
-      state.highlightItems = highlightItems;
-    }
 
-    this.state = state;
-  }
+    const [uncollapsedTree, setUncollapsedTree] = useState<TreeDirectory | undefined>(undefined);
+    const [sourceTree, setSourceTree] = useState<TreeNode | undefined>(undefined);
+    const [parentMap, setParentMap] = useState<WeakMap<object, any> | undefined>(undefined);
+    const [listItems, setListItems] = useState<TreeNode[] | undefined>(undefined);
+    const [highlightItems, setHighlightItems] = useState<TreeNode[] | undefined>(undefined);
 
-  UNSAFE_componentWillReceiveProps(nextProps: PropsFromRedux) {
-    const { sources, shownSource, selectedSource } = this.props;
-    const { uncollapsedTree, sourceTree } = this.state;
+    const UNSAFE_componentWillReceivePropsHandler = useCallback((nextProps: PropsFromRedux) => {
+    const { sources, shownSource, selectedSource } = props;
+    
 
     if (nextProps.shownSource && nextProps.shownSource != shownSource) {
       const listItems = getDirectories(nextProps.shownSource, sourceTree as TreeDirectory);
-      return this.setState({ listItems });
+      return setListItems(listItems);;
     }
 
     if (nextProps.selectedSource && nextProps.selectedSource != selectedSource) {
       const highlightItems = getDirectories(nextProps.selectedSource, sourceTree as TreeDirectory);
-      this.setState({ highlightItems });
+      setHighlightItems(highlightItems);
     }
 
     // NOTE: do not run this every time a source is clicked,
     // only when a new source is added
-    if (nextProps.sources != this.props.sources) {
-      this.setState(
-        updateTree({
-          debuggeeUrl: "",
-          newSources: nextProps.sources,
-          prevSources: sources,
-          uncollapsedTree,
-          sourceTree,
-        })
-      );
+    if (nextProps.sources != props.sources) {
+      setDebuggeeUrl("");
+    setNewSources(nextProps.sources);
+    setPrevSources(sources);
+    setUncollapsedTree(uncollapsedTree);
+    setSourceTree(sourceTree);
     }
-  }
-
-  selectItem = (item: TreeNode | undefined) => {
+  }, [listItems, sourceTree, highlightItems, uncollapsedTree]);
+    const selectItemHandler = useCallback((item: TreeNode | undefined) => {
     if (item && item.type == "source" && !Array.isArray(item.contents)) {
       trackEvent("source_explorer.select_source");
-      this.props.selectSource(this.props.cx, item.contents.id);
+      props.selectSource(props.cx, item.contents.id);
     }
-  };
-
-  onFocus = (item: TreeNode | undefined) => {
-    this.props.focusItem(item);
-  };
-
-  onActivate = (item: TreeNode | undefined) => {
-    this.selectItem(item);
-  };
-
-  // NOTE: we get the source from sources because item.contents is cached
-  getSource(item: TreeNode) {
+  }, []);
+    const onFocusHandler = useCallback((item: TreeNode | undefined) => {
+    props.focusItem(item);
+  }, []);
+    const onActivateHandler = useCallback((item: TreeNode | undefined) => {
+    selectItemHandler(item);
+  }, []);
+    // NOTE: we get the source from sources because item.contents is cached
+    const getSourceHandler = useCallback((item: TreeNode) => {
     const source = getSourceFromNode(item);
-    return findSource(this.props.sources, source!);
-  }
-
-  getPath = (item: TreeNode) => {
+    return findSource(props.sources, source!);
+  }, []);
+    const getPathHandler = useCallback((item: TreeNode) => {
     const { path } = item;
-    const source = this.getSource(item);
+    const source = getSourceHandler(item);
 
     if (!source || isDirectory(item)) {
       return path;
     }
 
     return `${path}/${source.id}/`;
-  };
-
-  getKey = (item: TreeNode) => {
+  }, []);
+    const getKeyHandler = useCallback((item: TreeNode) => {
     const { path } = item;
-    const source = this.getSource(item);
+    const source = getSourceHandler(item);
 
     if (item.type === "source" && source) {
       // Probably overkill
@@ -190,41 +172,34 @@ class SourcesTree extends Component<PropsFromRedux, STState> {
     }
 
     return path;
-  };
-
-  onExpand = (item: TreeNode, expandedState: $FixTypeLater) => {
-    this.props.setExpandedState(expandedState);
-  };
-
-  onCollapse = (item: TreeNode, expandedState: $FixTypeLater) => {
-    this.props.setExpandedState(expandedState);
-  };
-
-  isEmpty() {
-    const { sourceTree } = this.state;
+  }, []);
+    const onExpandHandler = useCallback((item: TreeNode, expandedState: $FixTypeLater) => {
+    props.setExpandedState(expandedState);
+  }, []);
+    const onCollapseHandler = useCallback((item: TreeNode, expandedState: $FixTypeLater) => {
+    props.setExpandedState(expandedState);
+  }, []);
+    const isEmptyHandler = useCallback(() => {
+    
     if (!Array.isArray(sourceTree.contents)) {
       return true;
     }
     return sourceTree.contents.length === 0;
-  }
-
-  renderEmptyElement(message: string) {
+  }, [sourceTree]);
+    const renderEmptyElementHandler = useCallback((message: string) => {
     return (
       <div key="empty" className="no-sources-message">
         {message}
       </div>
     );
-  }
-
-  getRoots = (sourceTree: TreeNode) => {
+  }, []);
+    const getRootsHandler = useCallback((sourceTree: TreeNode) => {
     return sourceTree.contents as TreeNode[];
-  };
-
-  getChildren = (item: TreeNode) => {
+  }, [sourceTree]);
+    const getChildrenHandler = useCallback((item: TreeNode) => {
     return nodeHasChildren(item) ? (item.contents as TreeNode[]) : [];
-  };
-
-  renderItem = (
+  }, []);
+    const renderItemHandler = useCallback((
     item: TreeNode,
     depth: number,
     focused: boolean,
@@ -239,19 +214,18 @@ class SourcesTree extends Component<PropsFromRedux, STState> {
         focused={focused}
         autoExpand={shouldAutoExpand(depth, item)}
         expanded={expanded}
-        focusItem={this.onFocus}
-        selectItem={this.selectItem}
-        source={this.getSource(item)}
+        focusItem={onFocusHandler}
+        selectItem={selectItemHandler}
+        source={getSourceHandler(item)}
         debuggeeUrl={""}
         setExpanded={setExpanded}
       />
     );
-  };
+  }, []);
+    const renderTree = useMemo(() => {
+    const { expanded, focused } = props;
 
-  renderTree() {
-    const { expanded, focused } = this.props;
-
-    const { highlightItems, listItems, parentMap, sourceTree } = this.state;
+    
 
     return (
       <ManagedTree<TreeNode>
@@ -259,38 +233,37 @@ class SourcesTree extends Component<PropsFromRedux, STState> {
         autoExpandDepth={1}
         expanded={expanded}
         focused={focused as any}
-        getChildren={this.getChildren}
+        getChildren={getChildrenHandler}
         getParent={(item: TreeNode) => parentMap.get(item)}
-        getPath={this.getPath}
-        getKey={this.getKey}
-        getRoots={() => this.getRoots(sourceTree)}
+        getPath={getPathHandler}
+        getKey={getKeyHandler}
+        getRoots={() => getRootsHandler(sourceTree)}
         highlightItems={highlightItems}
-        key={this.isEmpty() ? "empty" : "full"}
+        key={isEmptyHandler() ? "empty" : "full"}
         listItems={listItems}
-        onCollapse={this.onCollapse}
-        onExpand={this.onExpand}
-        onFocus={this.onFocus}
-        onActivate={this.onActivate}
-        renderItem={this.renderItem}
+        onCollapse={onCollapseHandler}
+        onExpand={onExpandHandler}
+        onFocus={onFocusHandler}
+        onActivate={onActivateHandler}
+        renderItem={renderItemHandler}
         preventBlur={true}
       />
     );
-  }
+  }, [parentMap, sourceTree, highlightItems, listItems]);
 
-  render() {
-    const { sourcesLoading } = this.props;
+    const { sourcesLoading } = props;
     if (sourcesLoading) {
       return (
         <div key="pane" className="sources-pane">
-          {this.renderEmptyElement("Sources are loading.")}
+          {renderEmptyElementHandler("Sources are loading.")}
         </div>
       );
     }
 
-    if (this.isEmpty()) {
+    if (isEmptyHandler()) {
       return (
         <div key="pane" className="sources-pane">
-          {this.renderEmptyElement("This page has no sources.")}
+          {renderEmptyElementHandler("This page has no sources.")}
         </div>
       );
     }
@@ -298,15 +271,17 @@ class SourcesTree extends Component<PropsFromRedux, STState> {
     return (
       <div key="pane" className="sources-pane">
         <div key="tree" className="sources-list">
-          {this.renderTree()}
+          {renderTree()}
         </div>
       </div>
-    );
-  }
-}
+    ); 
+};
+
+
+
 
 const WrappedSourcesTree = (props: PropsFromRedux) => {
-  const [, dismissExploreSourcesNag] = useNag(Nag.EXPLORE_SOURCES);
+  const [ dismissExploreSourcesNag] = useNag(Nag.EXPLORE_SOURCES);
 
   useEffect(() => {
     dismissExploreSourcesNag();

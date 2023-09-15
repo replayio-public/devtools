@@ -2,11 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at <http://mozilla.org/MPL/2.0/>. */
 
+
 import { Dictionary } from "@reduxjs/toolkit";
 import fuzzyAldrin from "fuzzaldrin-plus";
 import debounce from "lodash/debounce";
 import memoizeOne from "memoize-one";
-import React, { Component } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import { useImperativeCacheValue } from "suspense";
 
 import { sourceOutlineCache } from "replay-next/src/suspense/SourceOutlineCache";
@@ -16,11 +17,11 @@ import { ViewMode } from "shared/user-data/GraphQL/config";
 import { setViewMode as setViewModeAction } from "ui/actions/layout";
 import { getViewMode } from "ui/reducers/layout";
 import {
-  SourceDetails,
-  getAllSourceDetails,
-  getSelectedSource,
-  getSourcesLoading,
-  getSourcesToDisplayByUrl,
+    SourceDetails,
+    getAllSourceDetails,
+    getSelectedSource,
+    getSourcesLoading,
+    getSourcesToDisplayByUrl,
 } from "ui/reducers/sources";
 import { useAppDispatch, useAppSelector } from "ui/setup/hooks";
 import { trackEvent } from "ui/utils/telemetry";
@@ -29,26 +30,24 @@ import actions from "../actions";
 import { PartialLocation } from "../actions/sources/select";
 import { getGlobalFunctions, isGlobalFunctionsLoading } from "../reducers/ast";
 import {
-  Context,
-  HighlightedRange,
-  SearchTypes,
-  Tab,
-  getContext,
-  getQuickOpenEnabled,
-  getQuickOpenProject,
-  getQuickOpenQuery,
-  getQuickOpenType,
-  getShowOnlyOpenSources,
-  getSourcesForTabs,
-  getTabs,
+    Context,
+    HighlightedRange,
+    SearchTypes,
+    Tab,
+    getContext,
+    getQuickOpenEnabled,
+    getQuickOpenProject,
+    getQuickOpenQuery,
+    getQuickOpenType,
+    getShowOnlyOpenSources,
+    getSourcesForTabs,
+    getTabs,
 } from "../selectors";
 import { basename } from "../utils/path";
 import {
-  SearchResult,
-  formatShortcutResults,
-  formatSources,
-  formatSymbols,
-  parseLineColumn,
+    SearchResult,
+    formatShortcutResults, formatSymbols,
+    parseLineColumn
 } from "../utils/quick-open";
 import Modal from "./shared/Modal";
 import ResultList from "./shared/ResultList";
@@ -80,35 +79,30 @@ interface QOMState {
   selectedIndex: number;
 }
 
-class QuickOpenModal extends Component<QuickOpenModalProps, QOMState> {
-  resultList = React.createRef<ResultList>();
-  constructor(props: QuickOpenModalProps) {
-    super(props);
+const QuickOpenModal = (props: QuickOpenModalProps) => {
 
-    this.state = {
-      results: props.showOnlyOpenSources
-        ? this.formatSources(props.sourcesToDisplayByUrl, props.tabs, false)
-        : null,
-      selectedIndex: 0,
-    };
-  }
 
-  setResults(results: SearchResult[]) {
+    const [results, setResults] = useState(props.showOnlyOpenSources
+        ? formatSources.current(props.sourcesToDisplayByUrl, props.tabs, false)
+        : null);
+    const [selectedIndex, setSelectedIndex] = useState(0);
+
+    const resultList = useRef<ResultList>();
+    const setResultsHandler = useCallback((results: SearchResult[]) => {
     if (results) {
-      results = results.slice(0, maxResults);
+      setResults(results.slice(0, maxResults));
     }
-    this.setState({ results });
-  }
+    setResults(results);
+  }, [results]);
+    useEffect(() => {
+    const hasChanged = (field: keyof QuickOpenModalProps) => prevProps[field] !== props[field];
 
-  componentDidUpdate(prevProps: QuickOpenModalProps) {
-    const hasChanged = (field: keyof QuickOpenModalProps) => prevProps[field] !== this.props[field];
-
-    this.resultList.current?.scrollList(this.state.selectedIndex);
+    resultList.current?.scrollList(selectedIndex);
 
     if (hasChanged("sourceCount")) {
       // If the source count has changed, we need to update the throttled
       // updateResults callback with the appropriate throttle duration.
-      this.updateResults = this.getUpdateResultsCallback();
+      updateResults.current = getUpdateResultsCallbackHandler();
     }
 
     if (
@@ -117,20 +111,17 @@ class QuickOpenModal extends Component<QuickOpenModalProps, QOMState> {
       hasChanged("symbols") ||
       hasChanged("globalFunctions")
     ) {
-      this.updateResults(this.props.query);
+      updateResults.current(props.query);
     }
-  }
-
-  closeModal = () => {
-    this.props.closeQuickOpen();
-  };
-
-  dropGoto = (query: string) => {
+  }, [selectedIndex]);
+    const closeModalHandler = useCallback(() => {
+    props.closeQuickOpen();
+  }, []);
+    const dropGotoHandler = useCallback((query: string) => {
     const index = query.indexOf(":");
     return index !== -1 ? query.slice(0, index) : query;
-  };
-
-  formatSources = memoizeOne(
+  }, []);
+    const formatSources = useRef(memoizeOne(
     (
       sourcesToDisplayByUrl: Dictionary<SourceDetails>,
       tabs: { url: string }[],
@@ -139,54 +130,48 @@ class QuickOpenModal extends Component<QuickOpenModalProps, QOMState> {
       const tabUrls = new Set(tabs.map(tab => tab.url));
       return formatSources(sourcesToDisplayByUrl, tabUrls, onlySourcesInTabs);
     }
-  );
-
-  searchSources = (query: string) => {
-    const { tabs, showOnlyOpenSources, sourcesLoading, sourcesToDisplayByUrl } = this.props;
+  ));
+    const searchSourcesHandler = useCallback((query: string) => {
+    const { tabs, showOnlyOpenSources, sourcesLoading, sourcesToDisplayByUrl } = props;
 
     if (sourcesLoading) {
       return null;
     }
 
-    const sources = this.formatSources(sourcesToDisplayByUrl, tabs, showOnlyOpenSources);
-    const results = query == "" ? sources : filter(sources, this.dropGoto(query));
-    return this.setResults(results);
-  };
-
-  getFunctions() {
-    const { project, symbols, globalFunctions } = this.props;
+    const sources = formatSources.current(sourcesToDisplayByUrl, tabs, showOnlyOpenSources);
+    const results = query == "" ? sources : filter(sources, dropGotoHandler(query));
+    return setResultsHandler(results);
+  }, [results]);
+    const getFunctionsHandler = useCallback(() => {
+    const { project, symbols, globalFunctions } = props;
 
     return project ? globalFunctions || [] : symbols.functions;
-  }
-
-  searchFunctions(query: string) {
-    let fns = this.getFunctions() as SearchResult[];
+  }, []);
+    const searchFunctionsHandler = useCallback((query: string) => {
+    let fns = getFunctionsHandler() as SearchResult[];
 
     if (query === "@" || query === "#") {
-      return this.setResults(fns);
+      return setResultsHandler(fns);
     }
 
     const filteredFns = filter(fns, query.slice(1));
-    return this.setResults(filteredFns);
-  }
-
-  searchShortcuts = (query: string) => {
+    return setResultsHandler(filteredFns);
+  }, []);
+    const searchShortcutsHandler = useCallback((query: string) => {
     const results = formatShortcutResults();
     if (query == "?") {
-      this.setResults(results);
+      setResultsHandler(results);
     } else {
-      this.setResults(filter(results, query.slice(1)));
+      setResultsHandler(filter(results, query.slice(1)));
     }
-  };
-
-  showTopSources = () => {
-    const { tabs, sourcesToDisplayByUrl } = this.props;
+  }, [results]);
+    const showTopSourcesHandler = useCallback(() => {
+    const { tabs, sourcesToDisplayByUrl } = props;
     const tabUrls = new Set(tabs.map(tab => tab.url));
-    this.setResults(formatSources(sourcesToDisplayByUrl, tabUrls, tabs.length > 0));
-  };
-
-  getDebounceMs = () => {
-    const { sourceCount } = this.props;
+    setResultsHandler(formatSources(sourcesToDisplayByUrl, tabUrls, tabs.length > 0));
+  }, []);
+    const getDebounceMsHandler = useCallback(() => {
+    const { sourceCount } = props;
 
     if (sourceCount > 10_000) {
       return 1000;
@@ -197,69 +182,64 @@ class QuickOpenModal extends Component<QuickOpenModalProps, QOMState> {
     }
 
     return 50;
-  };
-
-  getUpdateResultsCallback = () =>
+  }, []);
+    const getUpdateResultsCallbackHandler = useCallback(() =>
     debounce(query => {
-      if (this.isGotoQuery()) {
-        this.setResults([]);
-      } else if (query == "" && !this.isShortcutQuery()) {
-        this.showTopSources();
-      } else if (this.isFunctionQuery()) {
-        this.searchFunctions(query);
-      } else if (this.isShortcutQuery()) {
-        this.searchShortcuts(query);
+      if (isGotoQueryHandler()) {
+        setResultsHandler([]);
+      } else if (query == "" && !isShortcutQueryHandler()) {
+        showTopSourcesHandler();
+      } else if (isFunctionQueryHandler()) {
+        searchFunctionsHandler(query);
+      } else if (isShortcutQueryHandler()) {
+        searchShortcutsHandler(query);
       } else {
-        this.searchSources(query);
+        searchSourcesHandler(query);
       }
-    }, this.getDebounceMs());
-
-  updateResults = this.getUpdateResultsCallback();
-
-  setModifier = (item: SearchResultWithHighlighting) => {
+    }, getDebounceMsHandler()), []);
+    const updateResults = useRef(getUpdateResultsCallbackHandler());
+    const setModifierHandler = useCallback((item: SearchResultWithHighlighting) => {
     if (["@", "#", ":"].includes(item.id)) {
-      this.props.setQuickOpenQuery(item.id);
+      props.setQuickOpenQuery(item.id);
     }
-  };
-
-  selectResultItem = (e: any, item: SearchResultWithHighlighting) => {
+  }, []);
+    const selectResultItemHandler = useCallback((e: any, item: SearchResultWithHighlighting) => {
     if (item == null) {
       return;
     }
 
-    if (this.isShortcutQuery()) {
-      return this.setModifier(item);
+    if (isShortcutQueryHandler()) {
+      return setModifierHandler(item);
     }
 
-    if (this.isGotoSourceQuery()) {
+    if (isGotoSourceQueryHandler()) {
       trackEvent("quick_open.select_line");
 
-      const location = parseLineColumn(this.props.query);
-      return this.gotoLocation({ ...location, sourceId: item.id });
+      const location = parseLineColumn(props.query);
+      return gotoLocationHandler({ ...location, sourceId: item.id });
     }
 
-    if (this.isFunctionQuery()) {
+    if (isFunctionQueryHandler()) {
       const start = item.location?.begin;
       trackEvent("quick_open.select_function");
 
-      return this.gotoLocation({
+      return gotoLocationHandler({
         line: start?.line || 0,
         sourceId: start?.sourceId,
       });
     }
 
     trackEvent("quick_open.select_source");
-    this.gotoLocation({ sourceId: item.id, line: 0 });
-  };
+    gotoLocationHandler({ sourceId: item.id, line: 0 });
+  }, []);
+    const onSelectResultItemHandler = useCallback((item: SearchResult) => {
+    const { selectedSource, highlightLineRange, project } = props;
 
-  onSelectResultItem = (item: SearchResult) => {
-    const { selectedSource, highlightLineRange, project } = this.props;
-
-    if (selectedSource == null || !this.isFunctionQuery()) {
+    if (selectedSource == null || !isFunctionQueryHandler()) {
       return;
     }
 
-    if (this.isFunctionQuery() && !project) {
+    if (isFunctionQueryHandler() && !project) {
       return highlightLineRange({
         ...(item.location != null
           ? { end: item.location.end!.line, start: item.location.begin.line }
@@ -267,24 +247,22 @@ class QuickOpenModal extends Component<QuickOpenModalProps, QOMState> {
         sourceId: selectedSource.id,
       });
     }
-  };
-
-  traverseResults = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  }, []);
+    const traverseResultsHandler = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     const direction = e.key === "ArrowUp" ? -1 : 1;
-    const { selectedIndex, results } = this.state;
-    const resultCount = this.getResultCount();
+    
+    const resultCount = getResultCountHandler();
     const index = selectedIndex + direction;
     const nextIndex = (index + resultCount) % resultCount || 0;
 
-    this.setState({ selectedIndex: nextIndex });
+    setSelectedIndex(nextIndex);
 
     if (results != null) {
-      this.onSelectResultItem(results[nextIndex]);
+      onSelectResultItemHandler(results[nextIndex]);
     }
-  };
-
-  gotoLocation = (location?: { column?: number; line?: number; sourceId?: string }) => {
-    const { cx, selectLocation, selectedSource, viewMode, setViewMode } = this.props;
+  }, [selectedIndex, results]);
+    const gotoLocationHandler = useCallback((location?: { column?: number; line?: number; sourceId?: string }) => {
+    const { cx, selectLocation, selectedSource, viewMode, setViewMode } = props;
 
     if (location != null) {
       const selectedSourceId = selectedSource ? selectedSource.id : "";
@@ -298,12 +276,11 @@ class QuickOpenModal extends Component<QuickOpenModalProps, QOMState> {
       if (viewMode === "non-dev") {
         setViewMode("dev");
       }
-      this.closeModal();
+      closeModalHandler();
     }
-  };
-
-  onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { selectedSource, setQuickOpenQuery } = this.props;
+  }, []);
+    const onChangeHandler = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const { selectedSource, setQuickOpenQuery } = props;
     setQuickOpenQuery(e.target.value);
 
     let selectedContentLoaded = false;
@@ -313,18 +290,17 @@ class QuickOpenModal extends Component<QuickOpenModalProps, QOMState> {
     }
     const noSource = !selectedSource || !selectedContentLoaded;
 
-    if ((noSource && this.isFunctionQuery()) || this.isGotoQuery()) {
+    if ((noSource && isFunctionQueryHandler()) || isGotoQueryHandler()) {
       return;
     }
 
-    this.updateResults(e.target.value);
-  };
-
-  onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    const { enabled, query } = this.props;
-    const { selectedIndex } = this.state;
-    const isGoToQuery = this.isGotoQuery();
-    const results = this.state.results;
+    updateResults.current(e.target.value);
+  }, []);
+    const onKeyDownHandler = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    const { enabled, query } = props;
+    
+    const isGoToQuery = isGotoQueryHandler();
+    const results = results;
 
     if ((!enabled || !results) && !isGoToQuery) {
       return;
@@ -333,39 +309,35 @@ class QuickOpenModal extends Component<QuickOpenModalProps, QOMState> {
     if (e.key === "Enter") {
       if (isGoToQuery) {
         const location = parseLineColumn(query);
-        return this.gotoLocation(location);
+        return gotoLocationHandler(location);
       }
 
       if (results) {
-        return this.selectResultItem(e, results[selectedIndex]);
+        return selectResultItemHandler(e, results[selectedIndex]);
       }
     }
 
     if (e.key === "Tab") {
-      return this.closeModal();
+      return closeModalHandler();
     }
 
     if (["ArrowUp", "ArrowDown"].includes(e.key)) {
       e.preventDefault();
-      return this.traverseResults(e);
+      return traverseResultsHandler(e);
     }
-  };
-
-  getResultCount = () => {
-    const results = this.state.results;
+  }, [results, selectedIndex]);
+    const getResultCountHandler = useCallback(() => {
+    const results = results;
 
     return results && results.length ? results.length : 0;
-  };
-
-  // Query helpers
-  isFunctionQuery = () => this.props.searchType === "functions";
-  isGotoQuery = () => this.props.searchType === "goto";
-  isGotoSourceQuery = () => this.props.searchType === "gotoSource";
-  isShortcutQuery = () => this.props.searchType === "shortcuts";
-  isSourcesQuery = () => this.props.searchType === "sources";
-  isSourceSearch = () => this.isSourcesQuery() || this.isGotoSourceQuery();
-
-  renderHighlight(candidateString: string, query: string) {
+  }, [results]);
+    const isFunctionQueryHandler = useCallback(() => props.searchType === "functions", []);
+    const isGotoQueryHandler = useCallback(() => props.searchType === "goto", []);
+    const isGotoSourceQueryHandler = useCallback(() => props.searchType === "gotoSource", []);
+    const isShortcutQueryHandler = useCallback(() => props.searchType === "shortcuts", []);
+    const isSourcesQueryHandler = useCallback(() => props.searchType === "sources", []);
+    const isSourceSearchHandler = useCallback(() => isSourcesQueryHandler() || isGotoSourceQueryHandler(), []);
+    const renderHighlightHandler = useCallback((candidateString: string, query: string) => {
     const options = {
       wrap: {
         tagClose: "</mark>",
@@ -381,9 +353,8 @@ class QuickOpenModal extends Component<QuickOpenModalProps, QOMState> {
     const html = query ? fuzzyAldrin.wrap(candidateString, query, options) : candidateString;
 
     return <div dangerouslySetInnerHTML={{ __html: html }} />;
-  }
-
-  highlightMatching = (query: string, results: SearchResult[]): SearchResultWithHighlighting[] => {
+  }, []);
+    const highlightMatchingHandler = useCallback((query: string, results: SearchResult[]): SearchResultWithHighlighting[] => {
     let newQuery = query;
     if (newQuery === "") {
       return results;
@@ -394,25 +365,23 @@ class QuickOpenModal extends Component<QuickOpenModalProps, QOMState> {
       if (typeof result.title == "string") {
         return {
           ...result,
-          title: this.renderHighlight(result.title, basename(newQuery)),
+          title: renderHighlightHandler(result.title, basename(newQuery)),
         };
       }
       return result;
     });
-  };
-
-  shouldShowErrorEmoji() {
-    const { query } = this.props;
-    if (this.isGotoQuery()) {
+  }, [results]);
+    const shouldShowErrorEmojiHandler = useCallback(() => {
+    const { query } = props;
+    if (isGotoQueryHandler()) {
       return !/^:\d*:*\d*$/.test(query);
     }
-    return !!query && !this.getResultCount();
-  }
+    return !!query && !getResultCountHandler();
+  }, []);
+    const getSummaryMessageHandler = useCallback(() => {
+    const { symbolsLoading, project, globalFunctionsLoading, query } = props;
 
-  getSummaryMessage() {
-    const { symbolsLoading, project, globalFunctionsLoading, query } = this.props;
-
-    if (this.isGotoQuery()) {
+    if (isGotoQueryHandler()) {
       const isValid = /^:\d*:*\d*$/.test(query);
 
       const [_, line, column] = query.split(":");
@@ -429,22 +398,21 @@ class QuickOpenModal extends Component<QuickOpenModalProps, QOMState> {
       return `Loading functions`;
     }
 
-    if (this.isFunctionQuery() && symbolsLoading) {
+    if (isFunctionQueryHandler() && symbolsLoading) {
       return "Loading\u2026";
     }
 
     return "";
-  }
+  }, []);
 
-  render() {
-    const { enabled, query, sourcesLoading } = this.props;
-    const { selectedIndex, results } = this.state;
+    const { enabled, query, sourcesLoading } = props;
+    
 
     if (!enabled) {
       return null;
     }
 
-    const items = this.highlightMatching(query, results || []);
+    const items = highlightMatchingHandler(query, results || []);
     const expanded = !!items && items.length > 0;
     const showLoadingResults = query?.replace(/@/g, "") && results === null;
 
@@ -453,20 +421,20 @@ class QuickOpenModal extends Component<QuickOpenModalProps, QOMState> {
         width="500px"
         additionalClass={"rounded-lg text-xs"}
         in={enabled}
-        handleClose={this.closeModal}
+        handleClose={closeModalHandler}
       >
         <SearchInput
           query={query}
           hasPrefix={true}
-          count={this.getResultCount()}
+          count={getResultCountHandler()}
           dataTestId="QuickOpenInput"
           placeholder={"Go to file…"}
-          summaryMsg={this.getSummaryMessage()}
-          showErrorEmoji={this.shouldShowErrorEmoji()}
+          summaryMsg={getSummaryMessageHandler()}
+          showErrorEmoji={shouldShowErrorEmojiHandler()}
           isLoading={false}
-          onChange={this.onChange}
-          onKeyDown={this.onKeyDown}
-          handleClose={this.closeModal}
+          onChange={onChangeHandler}
+          onKeyDown={onKeyDownHandler}
+          handleClose={closeModalHandler}
           expanded={expanded}
           showClose={false}
           selectedItemId={expanded && items[selectedIndex] ? items[selectedIndex].id : ""}
@@ -480,16 +448,18 @@ class QuickOpenModal extends Component<QuickOpenModalProps, QOMState> {
             dataTestId="QuickOpenResultsList"
             items={items}
             selected={selectedIndex}
-            selectItem={this.selectResultItem}
-            ref={this.resultList}
+            selectItem={selectResultItemHandler}
+            ref={resultList.current}
             expanded={expanded}
-            {...(this.isSourceSearch() ? SIZE_BIG : SIZE_DEFAULT)}
+            {...(isSourceSearchHandler() ? SIZE_BIG : SIZE_DEFAULT)}
           />
         )}
       </Modal>
-    );
-  }
-}
+    ); 
+};
+
+
+
 
 interface QuickOpenModalProps {
   cx: Context;

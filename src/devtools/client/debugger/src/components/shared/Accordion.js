@@ -3,16 +3,20 @@
  * file, You can obtain one at <http://mozilla.org/MPL/2.0/>. */
 
 //
+
 import classNames from "classnames";
 import findLastIndex from "lodash/findLastIndex";
-import lastIndexOf from "lodash/lastIndexOf";
-import React, { Component, cloneElement } from "react";
+import { useCallback, cloneElement } from "react";
 
 import AccessibleImage from "./AccessibleImage";
 
-class Accordion extends Component {
-  handleHeaderClick(i) {
-    const item = this.props.items[i];
+const Accordion = (props) => {
+
+
+    
+
+    const handleHeaderClickHandler = useCallback((i) => {
+    const item = props.items[i];
     const opened = !item.opened;
     item.opened = opened;
 
@@ -22,18 +26,16 @@ class Accordion extends Component {
 
     // We force an update because otherwise the accordion
     // would not re-render
-    this.forceUpdate();
-  }
-
-  onHandleHeaderKeyDown(e, i) {
+    forceUpdateHandler();
+  }, []);
+    const onHandleHeaderKeyDownHandler = useCallback((e, i) => {
     if (e && (e.key === " " || e.key === "Enter")) {
-      this.handleHeaderClick(i);
+      handleHeaderClickHandler(i);
     }
-  }
-
-  renderContainer = (item, i) => {
+  }, []);
+    const renderContainerHandler = useCallback((item, i) => {
     const { opened } = item;
-    const lastOpenedIndex = i === findLastIndex(this.props.items, item => item.opened);
+    const lastOpenedIndex = i === findLastIndex(props.items, item => item.opened);
 
     return (
       <li
@@ -45,8 +47,8 @@ class Accordion extends Component {
         <h2
           className="_header bg-tabBgcolorAltSubtle"
           tabIndex="0"
-          onKeyDown={e => this.onHandleHeaderKeyDown(e, i)}
-          onClick={() => this.handleHeaderClick(i)}
+          onKeyDown={e => onHandleHeaderKeyDownHandler(e, i)}
+          onClick={() => handleHeaderClickHandler(i)}
         >
           <AccessibleImage className={`arrow ${opened ? "expanded" : ""}`} />
           <span className="header-label">{item.header}</span>
@@ -61,10 +63,12 @@ class Accordion extends Component {
         )}
       </li>
     );
-  };
-  render() {
-    return <ul className="accordion">{this.props.items.map(this.renderContainer)}</ul>;
-  }
-}
+  }, []);
+
+    return <ul className="accordion">{props.items.map(renderContainerHandler)}</ul>; 
+};
+
+
+
 
 export default Accordion;

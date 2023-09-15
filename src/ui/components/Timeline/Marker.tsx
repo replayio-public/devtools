@@ -1,6 +1,7 @@
+
 import { Location, PauseId } from "@replayio/protocol";
 import classnames from "classnames";
-import React, { MouseEventHandler } from "react";
+import { useCallback } from 'react';
 import { ConnectedProps, connect } from "react-redux";
 
 import { actions } from "ui/actions/index";
@@ -33,31 +34,33 @@ type MarkerProps = PropsFromRedux & {
   pauseId?: PauseId;
 };
 
-class Marker extends React.Component<MarkerProps> {
-  shouldComponentUpdate(nextProps: Readonly<MarkerProps>) {
-    const highlightChanged = this.props.isPrimaryHighlighted !== nextProps.isPrimaryHighlighted;
+const Marker = (props: MarkerProps) => {
+
+
+    
+
+    const shouldComponentUpdateHandler = useCallback((nextProps: Readonly<MarkerProps>) => {
+    const highlightChanged = props.isPrimaryHighlighted !== nextProps.isPrimaryHighlighted;
 
     return (
       highlightChanged ||
-      this.props.time !== nextProps.time ||
-      this.props.currentTime !== nextProps.currentTime ||
-      this.props.overlayWidth !== nextProps.overlayWidth ||
-      this.props.zoomRegion !== nextProps.zoomRegion
+      props.time !== nextProps.time ||
+      props.currentTime !== nextProps.currentTime ||
+      props.overlayWidth !== nextProps.overlayWidth ||
+      props.zoomRegion !== nextProps.zoomRegion
     );
-  }
-
-  onClick: MouseEventHandler = e => {
-    const { seek, point, time, pauseId } = this.props;
+  }, []);
+    const onClickHandler = useCallback(e => {
+    const { seek, point, time, pauseId } = props;
     trackEvent("timeline.marker_select");
 
     e.preventDefault();
     e.stopPropagation();
 
     seek(point, time, true, pauseId);
-  };
-
-  onMouseEnter = () => {
-    const { point, time, location, setHoveredItem } = this.props;
+  }, []);
+    const onMouseEnterHandler = useCallback(() => {
+    const { point, time, location, setHoveredItem } = props;
     const hoveredItem: HoveredItem = {
       point,
       time,
@@ -66,10 +69,9 @@ class Marker extends React.Component<MarkerProps> {
     };
 
     setHoveredItem(hoveredItem);
-  };
+  }, []);
 
-  render() {
-    const { time, currentTime, isPrimaryHighlighted, zoomRegion } = this.props;
+    const { time, currentTime, isPrimaryHighlighted, zoomRegion } = props;
 
     const offsetPercent = getVisiblePosition({ time, zoom: zoomRegion }) * 100;
     if (offsetPercent < 0 || offsetPercent > 100) {
@@ -86,14 +88,16 @@ class Marker extends React.Component<MarkerProps> {
         style={{
           left: `calc(${offsetPercent}% - ${pointWidth / 2}px)`,
         }}
-        onMouseEnter={this.onMouseEnter}
-        onClick={this.onClick}
+        onMouseEnter={onMouseEnterHandler}
+        onClick={onClickHandler}
       >
         <Circle />
       </a>
-    );
-  }
-}
+    ); 
+};
+
+
+
 
 const connector = connect(null, {
   setHoveredItem: actions.setHoveredItem,

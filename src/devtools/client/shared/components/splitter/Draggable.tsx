@@ -2,7 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import React from "react";
+
+import React, { useRef, useCallback } from 'react';
 
 interface DraggableProps {
   onMove: (x: number, y: number) => void;
@@ -12,59 +13,60 @@ interface DraggableProps {
   className: string;
 }
 
-class Draggable extends React.Component<DraggableProps> {
-  isDragging = false;
+const Draggable = (props: DraggableProps) => {
 
-  draggableEl = React.createRef<HTMLDivElement>();
 
-  startDragging = (ev: React.MouseEvent) => {
-    if (this.isDragging) {
+    
+
+    const isDragging = useRef(false);
+    const draggableEl = useRef<HTMLDivElement>();
+    const startDraggingHandler = useCallback((ev: React.MouseEvent) => {
+    if (isDragging.current) {
       return;
     }
-    this.isDragging = true;
+    isDragging.current = true;
 
     ev.preventDefault();
-    const doc = this.draggableEl.current!.ownerDocument;
-    doc.addEventListener("mousemove", this.onMove);
-    doc.addEventListener("mouseup", this.onUp);
-    this.props.onStart && this.props.onStart();
-  };
-
-  onMove = (ev: MouseEvent) => {
-    if (!this.isDragging) {
+    const doc = draggableEl.current!.ownerDocument;
+    doc.addEventListener("mousemove", onMoveHandler);
+    doc.addEventListener("mouseup", onUpHandler);
+    props.onStart && props.onStart();
+  }, []);
+    const onMoveHandler = useCallback((ev: MouseEvent) => {
+    if (!isDragging.current) {
       return;
     }
 
     ev.preventDefault();
     // Use viewport coordinates so, moving mouse over iframes
     // doesn't mangle (relative) coordinates.
-    this.props.onMove(ev.clientX, ev.clientY);
-  };
-
-  onUp = (ev: MouseEvent) => {
-    if (!this.isDragging) {
+    props.onMove(ev.clientX, ev.clientY);
+  }, []);
+    const onUpHandler = useCallback((ev: MouseEvent) => {
+    if (!isDragging.current) {
       return;
     }
-    this.isDragging = false;
+    isDragging.current = false;
 
     ev.preventDefault();
-    const doc = this.draggableEl.current!.ownerDocument;
-    doc.removeEventListener("mousemove", this.onMove);
-    doc.removeEventListener("mouseup", this.onUp);
-    this.props.onStop && this.props.onStop();
-  };
+    const doc = draggableEl.current!.ownerDocument;
+    doc.removeEventListener("mousemove", onMoveHandler);
+    doc.removeEventListener("mouseup", onUpHandler);
+    props.onStop && props.onStop();
+  }, []);
 
-  render() {
     return (
       <div
-        ref={this.draggableEl}
+        ref={draggableEl.current}
         role="presentation"
-        style={this.props.style}
-        className={this.props.className}
-        onMouseDown={this.startDragging}
+        style={props.style}
+        className={props.className}
+        onMouseDown={startDraggingHandler}
       />
-    );
-  }
-}
+    ); 
+};
+
+
+
 
 export default Draggable;

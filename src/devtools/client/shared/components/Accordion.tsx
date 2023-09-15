@@ -2,7 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at <http://mozilla.org/MPL/2.0/>. */
 
-import React from "react";
+
+import React, { useState, useCallback } from 'react';
 
 export interface AccordionItem {
   buttons?: React.ReactNode[];
@@ -26,84 +27,54 @@ interface AccordionState {
   everOpened: Record<string, boolean>;
 }
 
-class Accordion extends React.Component<AccordionProps, AccordionState> {
-  /**
-   * Add initial data to the state.opened map, and inject new data
-   * when receiving updated props.
-   */
-  static getDerivedStateFromProps(props: AccordionProps, state: AccordionState) {
-    const newItems = props.items.filter(({ id }) => typeof state.opened[id] !== "boolean");
+const Accordion = (props: AccordionProps) => {
 
-    if (newItems.length) {
-      const everOpened = { ...state.everOpened };
-      const opened = { ...state.opened };
-      for (const item of newItems) {
-        everOpened[item.id] = item.opened;
-        opened[item.id] = item.opened;
-      }
-      return { everOpened, opened };
-    }
 
-    return null;
-  }
+    const [opened, setOpened] = useState({});
+    const [everOpened, setEverOpened] = useState({});
 
-  state: AccordionState = {
-    opened: {},
-    everOpened: {},
-  };
-
-  /**
-   * @param {Event} event Click event.
-   */
-  onHeaderClick = (event: React.MouseEvent) => {
+    const onHeaderClickHandler = useCallback((event: React.MouseEvent) => {
     event.preventDefault();
     // In the Browser Toolbox's Inspector/Layout view, handleHeaderClick is
     // called twice unless we call stopPropagation, making the accordion item
     // open-and-close or close-and-open
     event.stopPropagation();
-    this.toggleItem(event.currentTarget.parentElement!.id);
-  };
-
-  /**
-   * @param {Event} event Keyboard event.
-   * @param {Object} item The item to be collapsed/expanded.
-   */
-  onHeaderKeyDown = (event: React.KeyboardEvent) => {
+    toggleItemHandler(event.currentTarget.parentElement!.id);
+  }, []);
+    const onHeaderKeyDownHandler = useCallback((event: React.KeyboardEvent) => {
     if (event.key === " " || event.key === "Enter") {
       event.preventDefault();
-      this.toggleItem(event.currentTarget.parentElement!.id);
+      toggleItemHandler(event.currentTarget.parentElement!.id);
     }
-  };
-
-  /**
+  }, []);
+    /**
    * Expand or collapse an accordion list item.
    * @param  {String} id Id of the item to be collapsed or expanded.
    */
-  toggleItem(id: string) {
-    const item = this.props.items.find((x: AccordionItem) => x.id === id);
-    const opened = !this.state.opened[id];
+    const toggleItemHandler = useCallback((id: string) => {
+    const item = props.items.find((x: AccordionItem) => x.id === id);
+    const opened = !opened[id];
     // We could have no item if props just changed
     if (!item) {
       return;
     }
 
-    this.setState({
-      everOpened: {
-        ...this.state.everOpened,
+    setEverOpened({
+        ...everOpened,
         [id]: true,
-      },
-      opened: {
-        ...this.state.opened,
+      });
+    set[id](true);
+    setOpened({
+        ...opened,
         [id]: opened,
-      },
-    });
+      });
+    set[id](opened);
 
     if (typeof item.onToggle === "function") {
       item.onToggle(opened);
     }
-  }
-
-  renderItem(item: AccordionItem) {
+  }, [opened, everOpened]);
+    const renderItemHandler = useCallback((item: AccordionItem) => {
     const {
       buttons,
       className = "",
@@ -114,13 +85,13 @@ class Accordion extends React.Component<AccordionProps, AccordionState> {
       id,
     } = item;
     const headerId = `${id}-header`;
-    const opened = this.state.opened[id];
+    const opened = opened[id];
     let itemContent;
 
     // Only render content if the accordion item is open or has been opened once
     // before. This saves us rendering complex components when users are keeping
     // them closed (e.g. in Inspector/Layout) or may not open them at all.
-    if (this.state.everOpened[id]) {
+    if (everOpened[id]) {
       if (typeof ItemComponent === "function") {
         itemContent = <ItemComponent {...componentProps} />;
       } else if (typeof ItemComponent === "object") {
@@ -143,8 +114,8 @@ class Accordion extends React.Component<AccordionProps, AccordionState> {
           // If the header contains buttons, make sure the heading name only
           // contains the "header" text and not the button text
           aria-label={header}
-          onKeyDown={this.onHeaderKeyDown}
-          onClick={this.onHeaderClick}
+          onKeyDown={onHeaderKeyDownHandler}
+          onClick={onHeaderClickHandler}
         >
           <span className={`theme-twisty${opened ? " open" : ""}`} role="presentation" />
           <span className="accordion-header-label">{header}</span>
@@ -163,15 +134,34 @@ class Accordion extends React.Component<AccordionProps, AccordionState> {
         </div>
       </li>
     );
-  }
+  }, [opened, everOpened]);
 
-  render() {
     return (
-      <ul className="accordion" style={this.props.style} tabIndex={-1}>
-        {this.props.items.map((item: AccordionItem) => this.renderItem(item))}
+      <ul className="accordion" style={props.style} tabIndex={-1}>
+        {props.items.map((item: AccordionItem) => renderItemHandler(item))}
       </ul>
-    );
-  }
-}
+    ); 
+};
+
+/**
+   * Add initial data to the state.opened map, and inject new data
+   * when receiving updated props.
+   */
+    Accordion.getDerivedStateFromProps = (props: AccordionProps, state: AccordionState) => {
+    const newItems = props.items.filter(({ id }) => typeof state.opened[id] !== "boolean");
+
+    if (newItems.length) {
+      const everOpened = { ...state.everOpened };
+      const opened = { ...state.opened };
+      for (const item of newItems) {
+        everOpened[item.id] = item.opened;
+        opened[item.id] = item.opened;
+      }
+      return { everOpened, opened };
+    }
+
+    return null;
+  };
+
 
 export default Accordion;

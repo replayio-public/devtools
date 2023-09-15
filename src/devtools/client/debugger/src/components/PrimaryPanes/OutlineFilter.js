@@ -4,20 +4,21 @@
 
 //
 
-import React, { Component } from "react";
 
-export default class OutlineFilter extends Component {
-  state = { focused: false };
+import { useState, useCallback } from "react";
 
-  setFocus = shouldFocus => {
+export default export const OutlineFilter = (props) => {
+
+
+    const [focused, setFocused] = useState(false);
+
+    const setFocusHandler = useCallback(shouldFocus => {
     this.setState({ focused: shouldFocus });
-  };
-
-  onChange = e => {
+  }, []);
+    const onChangeHandler = useCallback(e => {
     this.props.updateFilter(e.target.value);
-  };
-
-  onKeyDown = e => {
+  }, []);
+    const onKeyDownHandler = useCallback(e => {
     if (e.key === "Escape" && this.props.filter !== "") {
       // use preventDefault to override toggling the split-console which is
       // also bound to the ESC key
@@ -28,9 +29,8 @@ export default class OutlineFilter extends Component {
       // https://github.com/firefox-devtools/debugger/pull/7308
       e.preventDefault();
     }
-  };
+  }, []);
 
-  render() {
     return (
       <div className="outline-filter px-3 pt-1">
         <form>
@@ -46,6 +46,8 @@ export default class OutlineFilter extends Component {
           />
         </form>
       </div>
-    );
-  }
-}
+    ); 
+};
+
+
+

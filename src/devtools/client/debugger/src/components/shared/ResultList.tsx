@@ -2,9 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at <http://mozilla.org/MPL/2.0/>. */
 
+
 import classnames from "classnames";
 //
-import React, { Component } from "react";
+import React, { useRef, useCallback } from "react";
 
 import { scrollList } from "../../utils/result-list";
 import { SearchResultWithHighlighting } from "../QuickOpenModal";
@@ -20,21 +21,23 @@ interface ResultListProps {
   selectItem: (e: any, item: SearchResultWithHighlighting) => void;
 }
 
-export default class ResultList extends Component<ResultListProps> {
-  listItemNodes: Record<number, HTMLElement> = {};
+export default export const ResultList = (inputProps: ResultListProps) => {
 
-  static defaultProps = {
+
+    
+
+    const listItemNodes = useRef<Record<number, HTMLElement>>({});
+    const props = { 
     size: "small",
     role: "listbox",
+    ...inputProps,
   };
-
-  scrollList = (newSelectedIndex: number) => {
+    const scrollListHandler = useCallback((newSelectedIndex: number) => {
     if (newSelectedIndex in this.listItemNodes) {
       scrollList(this.listItemNodes, newSelectedIndex);
     }
-  };
-
-  renderListItem = (item: SearchResultWithHighlighting, index: number) => {
+  }, []);
+    const renderListItemHandler = useCallback((item: SearchResultWithHighlighting, index: number) => {
     if (item.value === "/" && item.title === "") {
       item.title = "(index)";
     }
@@ -78,9 +81,8 @@ export default class ResultList extends Component<ResultListProps> {
         ) : null}
       </li>
     );
-  };
+  }, []);
 
-  render() {
     const { dataTestId, size, items, role } = this.props;
 
     return (
@@ -93,6 +95,8 @@ export default class ResultList extends Component<ResultListProps> {
       >
         {items.map(this.renderListItem)}
       </ul>
-    );
-  }
-}
+    ); 
+};
+
+
+

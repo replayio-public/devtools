@@ -2,9 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at <http://mozilla.org/MPL/2.0/>. */
 
+
 import classnames from "classnames";
 import PropTypes from "prop-types";
-import React, { ReactNode } from "react";
+import React, { useRef, useEffect, useCallback, useState } from 'react';
 
 export interface TreeProps<T> {
   getParent: (item: T) => T | undefined;
@@ -96,71 +97,53 @@ interface TreeNodeProps<T> {
   ) => React.ReactNode;
 }
 
-class TreeNode<T> extends React.Component<TreeNodeProps<T>> {
-  static get propTypes() {
-    return {
-      id: PropTypes.any.isRequired,
-      index: PropTypes.number.isRequired,
-      depth: PropTypes.number.isRequired,
-      focused: PropTypes.bool.isRequired,
-      active: PropTypes.bool.isRequired,
-      expanded: PropTypes.bool.isRequired,
-      item: PropTypes.any.isRequired,
-      isExpandable: PropTypes.bool.isRequired,
-      onClick: PropTypes.func,
-      areItemsEqual: PropTypes.func,
-      shouldItemUpdate: PropTypes.func,
-      renderItem: PropTypes.func.isRequired,
-    };
-  }
+const TreeNode = (props: TreeNodeProps<T>) => {
 
-  treeNodeRef = React.createRef<HTMLDivElement>();
 
-  componentDidMount() {
+    
+
+    const treeNodeRef = useRef<HTMLDivElement>();
+    useEffect(() => {
     // Make sure that none of the focusable elements inside the tree node
     // container are tabbable if the tree node is not active. If the tree node
     // is active and focus is outside its container, focus on the first
     // focusable element inside.
-    const elms = this.getFocusableElements();
-    if (this.props.active) {
-      const doc = this.treeNodeRef.current!.ownerDocument;
+    const elms = getFocusableElementsHandler();
+    if (props.active) {
+      const doc = treeNodeRef.current!.ownerDocument;
       if (elms.length > 0 && !elms.includes(doc.activeElement as any)) {
         elms[0].focus();
       }
     } else {
       elms.forEach(elm => elm.setAttribute("tabindex", "-1"));
     }
-  }
-
-  shouldComponentUpdate(nextProps: TreeNodeProps<T>) {
+  }, []);
+    const shouldComponentUpdateHandler = useCallback((nextProps: TreeNodeProps<T>) => {
     return (
-      !this._areItemsEqual(this.props.item, nextProps.item) ||
-      (this.props.shouldItemUpdate &&
-        this.props.shouldItemUpdate(this.props.item, nextProps.item)) ||
-      this.props.focused !== nextProps.focused ||
-      this.props.expanded !== nextProps.expanded
+      !_areItemsEqualHandler(props.item, nextProps.item) ||
+      (props.shouldItemUpdate &&
+        props.shouldItemUpdate(props.item, nextProps.item)) ||
+      props.focused !== nextProps.focused ||
+      props.expanded !== nextProps.expanded
     );
-  }
-
-  _areItemsEqual(prevItem: any, nextItem: any) {
-    if (this.props.areItemsEqual && prevItem && nextItem) {
-      return this.props.areItemsEqual(prevItem, nextItem);
+  }, []);
+    const _areItemsEqualHandler = useCallback((prevItem: any, nextItem: any) => {
+    if (props.areItemsEqual && prevItem && nextItem) {
+      return props.areItemsEqual(prevItem, nextItem);
     } else {
       return prevItem === nextItem;
     }
-  }
-
-  /**
+  }, []);
+    /**
    * Get a list of all elements that are focusable with a keyboard inside the
    * tree node.
    */
-  getFocusableElements() {
-    return this.treeNodeRef.current
-      ? (Array.from(this.treeNodeRef.current.querySelectorAll(FOCUSABLE_SELECTOR)) as HTMLElement[])
+    const getFocusableElementsHandler = useCallback(() => {
+    return treeNodeRef.current
+      ? (Array.from(treeNodeRef.current.querySelectorAll(FOCUSABLE_SELECTOR)) as HTMLElement[])
       : [];
-  }
-
-  /**
+  }, []);
+    /**
    * Wrap and move keyboard focus to first/last focusable element inside the
    * tree node to prevent the focus from escaping the tree node boundaries.
    * element).
@@ -169,8 +152,8 @@ class TreeNode<T> extends React.Component<TreeNodeProps<T>> {
    * @param  {Boolean} back     direction
    * @return {Boolean}          true there is a newly focused element.
    */
-  _wrapMoveFocus(current: HTMLElement, back: boolean) {
-    const elms = this.getFocusableElements();
+    const _wrapMoveFocusHandler = useCallback((current: HTMLElement, back: boolean) => {
+    const elms = getFocusableElementsHandler();
     let next;
 
     if (elms.length === 0) {
@@ -188,16 +171,15 @@ class TreeNode<T> extends React.Component<TreeNodeProps<T>> {
     }
 
     return !!next;
-  }
-
-  _onKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
+  }, []);
+    const _onKeyDownHandler = useCallback((e: React.KeyboardEvent<HTMLElement>) => {
     const { target, key, shiftKey } = e;
 
     if (key !== "Tab") {
       return;
     }
 
-    const focusMoved = this._wrapMoveFocus(target as HTMLElement, shiftKey);
+    const focusMoved = _wrapMoveFocusHandler(target as HTMLElement, shiftKey);
     if (focusMoved) {
       // Focus was moved to the begining/end of the list, so we need to prevent
       // the default focus change that would happen here.
@@ -205,18 +187,17 @@ class TreeNode<T> extends React.Component<TreeNodeProps<T>> {
     }
 
     e.stopPropagation();
-  };
+  }, []);
 
-  render() {
-    const { depth, id, item, focused, active, expanded, renderItem, isExpandable } = this.props;
+    const { depth, id, item, focused, active, expanded, renderItem, isExpandable } = props;
 
     const arrow = isExpandable ? <ArrowExpander expanded={expanded} /> : null;
 
     let ariaExpanded;
-    if (this.props.isExpandable) {
+    if (props.isExpandable) {
       ariaExpanded = false;
     }
-    if (this.props.expanded) {
+    if (props.expanded) {
       ariaExpanded = true;
     }
 
@@ -236,19 +217,36 @@ class TreeNode<T> extends React.Component<TreeNodeProps<T>> {
       <div
         id={id}
         className={`tree-node${focused ? " focused" : ""}${active ? " active" : ""}`}
-        onClick={this.props.onClick}
-        onKeyDownCapture={active ? this._onKeyDown : undefined}
+        onClick={props.onClick}
+        onKeyDownCapture={active ? _onKeyDownHandler : undefined}
         role="treeitem"
-        ref={this.treeNodeRef}
+        ref={treeNodeRef.current}
         aria-level={depth + 1}
         aria-expanded={ariaExpanded}
-        data-expandable={this.props.isExpandable}
+        data-expandable={props.isExpandable}
       >
         {items}
       </div>
-    );
-  }
-}
+    ); 
+};
+
+TreeNode.propTypes = () => {
+    return {
+      id: PropTypes.any.isRequired,
+      index: PropTypes.number.isRequired,
+      depth: PropTypes.number.isRequired,
+      focused: PropTypes.bool.isRequired,
+      active: PropTypes.bool.isRequired,
+      expanded: PropTypes.bool.isRequired,
+      item: PropTypes.any.isRequired,
+      isExpandable: PropTypes.bool.isRequired,
+      onClick: PropTypes.func,
+      areItemsEqual: PropTypes.func,
+      shouldItemUpdate: PropTypes.func,
+      renderItem: PropTypes.func.isRequired,
+    };
+  };
+
 
 /**
  * A generic tree component. See propTypes for the public API.
@@ -325,8 +323,457 @@ class TreeNode<T> extends React.Component<TreeNodeProps<T>> {
  *       }
  *     }
  */
-export class Tree<T> extends React.Component<TreeProps<T>, TreeState> {
-  static get propTypes() {
+export export const Tree = (props: TreeProps<T>) => {
+
+
+    const [autoExpanded, setAutoExpanded] = useState(new Set<string>());
+
+    const treeRef = useRef<HTMLDivElement>();
+    useEffect(() => {
+    _autoExpandHandler();
+    if (props.focused) {
+      _scrollNodeIntoViewHandler(props.focused);
+    }
+  }, []);
+    const UNSAFE_componentWillReceivePropsHandler = useCallback(() => {
+    _autoExpandHandler();
+  }, []);
+    useEffect(() => {
+    if (props.focused && !_areItemsEqualHandler(prevProps.focused, props.focused)) {
+      _scrollNodeIntoViewHandler(props.focused);
+    }
+  }, []);
+    const _areItemsEqualHandler = useCallback((prevItem: any, nextItem: any) => {
+    if (props.areItemsEqual && prevItem && nextItem) {
+      return props.areItemsEqual(prevItem, nextItem);
+    } else {
+      return prevItem === nextItem;
+    }
+  }, []);
+    const _autoExpandHandler = useCallback(() => {
+    const { autoExpandDepth, autoExpandNodeChildrenLimit, initiallyExpanded } = props;
+
+    if (!autoExpandDepth && !initiallyExpanded) {
+      return;
+    }
+
+    // Automatically expand the first autoExpandDepth levels for new items. Do
+    // not use the usual DFS infrastructure because we don't want to ignore
+    // collapsed nodes. Any initially expanded items will be expanded regardless
+    // of how deep they are.
+    const autoExpand = (item: any, currentDepth: number) => {
+      const initial = initiallyExpanded && initiallyExpanded(item);
+
+      if (!initial && currentDepth >= autoExpandDepth!) {
+        return;
+      }
+
+      const children = props.getChildren(item);
+      if (
+        !initial &&
+        autoExpandNodeChildrenLimit &&
+        children.length > autoExpandNodeChildrenLimit
+      ) {
+        return;
+      }
+
+      if (!autoExpanded.has(item)) {
+        props.onExpand?.(item);
+        autoExpanded.add(item);
+      }
+
+      const length = children.length;
+      for (let i = 0; i < length; i++) {
+        autoExpand(children[i], currentDepth + 1);
+      }
+    };
+
+    const roots = props.getRoots();
+    const length = roots.length;
+    if (props.autoExpandAll) {
+      for (let i = 0; i < length; i++) {
+        autoExpand(roots[i], 0);
+      }
+    } else if (length != 0) {
+      autoExpand(roots[0], 0);
+
+      if (initiallyExpanded) {
+        for (let i = 1; i < length; i++) {
+          if (initiallyExpanded(roots[i])) {
+            autoExpand(roots[i], 0);
+          }
+        }
+      }
+    }
+  }, [autoExpanded]);
+    const _preventArrowKeyScrollingHandler = useCallback((e: React.KeyboardEvent) => {
+    switch (e.key) {
+      case "ArrowUp":
+      case "ArrowDown":
+      case "ArrowLeft":
+      case "ArrowRight":
+        _preventEventHandler(e);
+        break;
+    }
+  }, []);
+    const _preventEventHandler = useCallback((e: React.KeyboardEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.nativeEvent) {
+      if (e.nativeEvent.preventDefault) {
+        e.nativeEvent.preventDefault();
+      }
+      if (e.nativeEvent.stopPropagation) {
+        e.nativeEvent.stopPropagation();
+      }
+    }
+  }, []);
+    /**
+   * Perform a pre-order depth-first search from item.
+   */
+    const _dfsHandler = useCallback((item: any, maxDepth = Infinity, traversal: DFSTraversalEntry[] = [], _depth = 0) => {
+    traversal.push({ item, depth: _depth });
+
+    if (!props.isExpanded(item)) {
+      return traversal;
+    }
+
+    const nextDepth = _depth + 1;
+
+    if (nextDepth > maxDepth) {
+      return traversal;
+    }
+
+    const children = props.getChildren(item);
+    const length = children.length;
+    for (let i = 0; i < length; i++) {
+      _dfsHandler(children[i], maxDepth, traversal, nextDepth);
+    }
+
+    return traversal;
+  }, []);
+    /**
+   * Perform a pre-order depth-first search over the whole forest.
+   */
+    const _dfsFromRootsHandler = useCallback((maxDepth = Infinity) => {
+    const traversal: DFSTraversalEntry[] = [];
+
+    const roots = props.getRoots();
+    const length = roots.length;
+    for (let i = 0; i < length; i++) {
+      _dfsHandler(roots[i], maxDepth, traversal);
+    }
+
+    return traversal;
+  }, []);
+    const _onExpandHandler = useCallback((item: any, expandAllChildren?: boolean) => {
+    if (props.onExpand) {
+      props.onExpand(item);
+
+      if (expandAllChildren) {
+        const children = _dfsHandler(item);
+        const length = children.length;
+        for (let i = 0; i < length; i++) {
+          props.onExpand(children[i].item);
+        }
+      }
+    }
+  }, []);
+    const _onCollapseHandler = useCallback((item: any) => {
+    if (props.onCollapse) {
+      props.onCollapse(item);
+    }
+  }, []);
+    const _focusHandler = useCallback((item: any, options: { preventAutoScroll?: boolean } = {}) => {
+    const { preventAutoScroll } = options;
+    if (item && !preventAutoScroll) {
+      _scrollNodeIntoViewHandler(item);
+    }
+
+    if (props.active != undefined) {
+      _activateHandler(undefined);
+      const doc = treeRef.current && treeRef.current.ownerDocument;
+      if (treeRef.current !== doc?.activeElement) {
+        treeRef.current!.focus();
+      }
+    }
+
+    if (props.onFocus) {
+      props.onFocus(item);
+    }
+  }, []);
+    const _activateHandler = useCallback((item: any) => {
+    if (props.onActivate) {
+      props.onActivate(item);
+    }
+  }, []);
+    const _scrollNodeIntoViewHandler = useCallback((item: any) => {
+    if (item !== undefined) {
+      const treeElement = treeRef.current;
+      const doc = treeElement && treeElement.ownerDocument;
+      const element = doc?.getElementById(props.getKey(item));
+
+      if (element) {
+        const { top, bottom } = element.getBoundingClientRect();
+        const closestScrolledParent = (node: HTMLElement | null): HTMLElement | null => {
+          if (node == null) {
+            return null;
+          }
+
+          if (node.scrollHeight > node.clientHeight) {
+            return node;
+          }
+          return closestScrolledParent(node.parentNode as HTMLElement);
+        };
+
+        const scrolledParentRect = treeElement?.getBoundingClientRect();
+        const isVisible =
+          !treeElement || (top >= scrolledParentRect!.top && bottom <= scrolledParentRect!.bottom);
+
+        if (isVisible) {
+          return;
+        }
+
+        element.scrollIntoView({ block: "center" });
+      }
+    }
+  }, []);
+    const _onBlurHandler = useCallback((e: React.FocusEvent<HTMLElement>) => {
+    if (props.active != undefined) {
+      const { relatedTarget } = e;
+      if (!treeRef.current!.contains(relatedTarget as any)) {
+        _activateHandler(undefined);
+      }
+    } else if (!props.preventBlur) {
+      _focusHandler(undefined);
+    }
+  }, []);
+    const _onKeyDownHandler = useCallback((e: React.KeyboardEvent) => {
+    if (props.focused == null) {
+      return;
+    }
+
+    // Allow parent nodes to use navigation arrows with modifiers.
+    if (e.altKey || e.ctrlKey || e.shiftKey || e.metaKey) {
+      return;
+    }
+
+    _preventArrowKeyScrollingHandler(e);
+    const doc = treeRef.current && treeRef.current.ownerDocument;
+
+    switch (e.key) {
+      case "ArrowUp":
+        _focusPrevNodeHandler();
+        return;
+
+      case "ArrowDown":
+        _focusNextNodeHandler();
+        return;
+
+      case "ArrowLeft":
+        if (
+          props.isExpanded(props.focused) &&
+          _nodeIsExpandableHandler(props.focused)
+        ) {
+          _onCollapseHandler(props.focused);
+        } else {
+          _focusParentNodeHandler();
+        }
+        return;
+
+      case "ArrowRight":
+        if (
+          _nodeIsExpandableHandler(props.focused) &&
+          !props.isExpanded(props.focused)
+        ) {
+          _onExpandHandler(props.focused);
+        } else {
+          _focusNextNodeHandler();
+        }
+        return;
+
+      case "Home":
+        _focusFirstNodeHandler();
+        return;
+
+      case "End":
+        _focusLastNodeHandler();
+        return;
+
+      case "Enter":
+      case "NumpadEnter":
+      case " ":
+        if (treeRef.current === doc!.activeElement) {
+          _preventEventHandler(e);
+          if (!_areItemsEqualHandler(props.active, props.focused)) {
+            _activateHandler(props.focused);
+          }
+        }
+        return;
+
+      case "Escape":
+        _preventEventHandler(e);
+        if (props.active != undefined) {
+          _activateHandler(undefined);
+        }
+
+        if (treeRef.current !== doc!.activeElement) {
+          treeRef.current!.focus();
+        }
+    }
+  }, []);
+    const _focusPrevNodeHandler = useCallback(() => {
+    // Start a depth first search and keep going until we reach the currently
+    // focused node. Focus the previous node in the DFS, if it exists. If it
+    // doesn't exist, we're at the first node already.
+
+    let prev;
+
+    const traversal = _dfsFromRootsHandler();
+    const length = traversal.length;
+    for (let i = 0; i < length; i++) {
+      const item = traversal[i].item;
+      if (_areItemsEqualHandler(item, props.focused)) {
+        break;
+      }
+      prev = item;
+    }
+    if (prev === undefined) {
+      return;
+    }
+
+    _focusHandler(prev);
+  }, []);
+    const _focusNextNodeHandler = useCallback(() => {
+    // Start a depth first search and keep going until we reach the currently
+    // focused node. Focus the next node in the DFS, if it exists. If it
+    // doesn't exist, we're at the last node already.
+    const traversal = _dfsFromRootsHandler();
+    const length = traversal.length;
+    let i = 0;
+
+    while (i < length) {
+      if (_areItemsEqualHandler(traversal[i].item, props.focused)) {
+        break;
+      }
+      i++;
+    }
+
+    if (i + 1 < traversal.length) {
+      _focusHandler(traversal[i + 1].item);
+    }
+  }, []);
+    const _focusParentNodeHandler = useCallback(() => {
+    const parent = props.getParent(props.focused!);
+    if (!parent) {
+      _focusPrevNodeHandler();
+      return;
+    }
+
+    _focusHandler(parent);
+  }, []);
+    const _focusFirstNodeHandler = useCallback(() => {
+    const traversal = _dfsFromRootsHandler();
+    _focusHandler(traversal[0].item);
+  }, []);
+    const _focusLastNodeHandler = useCallback(() => {
+    const traversal = _dfsFromRootsHandler();
+    const lastIndex = traversal.length - 1;
+    _focusHandler(traversal[lastIndex].item);
+  }, []);
+    const _nodeIsExpandableHandler = useCallback((item: any) => {
+    return props.isExpandable
+      ? props.isExpandable(item)
+      : !!props.getChildren(item).length;
+  }, []);
+
+    const traversal = _dfsFromRootsHandler();
+    const { active, focused } = props;
+
+    const nodes = traversal.map((v, i) => {
+      const { item, depth } = v;
+      const key = props.getKey(item);
+      return (
+        <TreeNode<any>
+          // We make a key unique depending on whether the tree node is in active
+          // or inactive state to make sure that it is actually replaced and the
+          // tabbable state is reset.
+          key={`${key}-${_areItemsEqualHandler(active, item) ? "active" : "inactive"}`}
+          id={key}
+          index={i}
+          item={item}
+          depth={depth}
+          areItemsEqual={props.areItemsEqual}
+          shouldItemUpdate={props.shouldItemUpdate}
+          renderItem={props.renderItem}
+          focused={_areItemsEqualHandler(focused, item)}
+          active={_areItemsEqualHandler(active, item)}
+          expanded={props.isExpanded(item)}
+          isExpandable={_nodeIsExpandableHandler(item)}
+          onClick={(e: React.MouseEvent) => {
+            // We can stop the propagation since click handler on the node can be
+            // created in `renderItem`.
+            e.stopPropagation();
+
+            if (e.defaultPrevented) {
+              return;
+            }
+
+            // Since the user just clicked the node, there's no need to check if
+            // it should be scrolled into view.
+            _focusHandler(item, { preventAutoScroll: true });
+            if (props.isExpanded(item)) {
+              props.onCollapse?.(item);
+            } else {
+              props.onExpand?.(item);
+            }
+
+            // Focus should always remain on the tree container itself.
+            treeRef.current!.focus();
+          }}
+        />
+      );
+    });
+    const style = Object.assign({}, props.style || {});
+
+    return (
+      <div
+        className={`tree ${props.className ? props.className : ""}`}
+        ref={treeRef.current}
+        role="tree"
+        tabIndex={0}
+        onKeyDown={_onKeyDownHandler}
+        onKeyPress={_preventArrowKeyScrollingHandler}
+        onKeyUp={_preventArrowKeyScrollingHandler}
+        onFocus={({ nativeEvent }: React.FocusEvent) => {
+          if (focused || !nativeEvent || !treeRef.current) {
+            return;
+          }
+
+          // @ts-expect-error
+          const { explicitOriginalTarget } = nativeEvent;
+          // Only set default focus to the first tree node if the focus came
+          // from outside the tree (e.g. by tabbing to the tree from other
+          // external elements).
+          if (
+            explicitOriginalTarget !== treeRef.current &&
+            !treeRef.current.contains(explicitOriginalTarget)
+          ) {
+            _focusHandler(traversal[0].item);
+          }
+        }}
+        onBlur={_onBlurHandler}
+        aria-label={props.label}
+        aria-labelledby={props.labelledby}
+        aria-activedescendant={focused && props.getKey(focused)}
+        style={style}
+      >
+        {nodes}
+      </div>
+    ); 
+};
+
+Tree.propTypes = () => {
     return {
       // Required props
 
@@ -483,539 +930,11 @@ export class Tree<T> extends React.Component<TreeProps<T>, TreeState> {
       // Prevents blur when Tree loses focus
       preventBlur: PropTypes.bool,
     };
-  }
-
-  static get defaultProps() {
+  };
+    Tree.defaultProps = () => {
     return {
       autoExpandDepth: AUTO_EXPAND_DEPTH,
       autoExpandAll: true,
     };
-  }
-
-  state: TreeState = {
-    autoExpanded: new Set<string>(),
   };
 
-  treeRef = React.createRef<HTMLDivElement>();
-
-  componentDidMount() {
-    this._autoExpand();
-    if (this.props.focused) {
-      this._scrollNodeIntoView(this.props.focused);
-    }
-  }
-
-  UNSAFE_componentWillReceiveProps() {
-    this._autoExpand();
-  }
-
-  componentDidUpdate(prevProps: TreeProps<T>) {
-    if (this.props.focused && !this._areItemsEqual(prevProps.focused, this.props.focused)) {
-      this._scrollNodeIntoView(this.props.focused);
-    }
-  }
-
-  _areItemsEqual = (prevItem: any, nextItem: any) => {
-    if (this.props.areItemsEqual && prevItem && nextItem) {
-      return this.props.areItemsEqual(prevItem, nextItem);
-    } else {
-      return prevItem === nextItem;
-    }
-  };
-
-  _autoExpand = () => {
-    const { autoExpandDepth, autoExpandNodeChildrenLimit, initiallyExpanded } = this.props;
-
-    if (!autoExpandDepth && !initiallyExpanded) {
-      return;
-    }
-
-    // Automatically expand the first autoExpandDepth levels for new items. Do
-    // not use the usual DFS infrastructure because we don't want to ignore
-    // collapsed nodes. Any initially expanded items will be expanded regardless
-    // of how deep they are.
-    const autoExpand = (item: any, currentDepth: number) => {
-      const initial = initiallyExpanded && initiallyExpanded(item);
-
-      if (!initial && currentDepth >= autoExpandDepth!) {
-        return;
-      }
-
-      const children = this.props.getChildren(item);
-      if (
-        !initial &&
-        autoExpandNodeChildrenLimit &&
-        children.length > autoExpandNodeChildrenLimit
-      ) {
-        return;
-      }
-
-      if (!this.state.autoExpanded.has(item)) {
-        this.props.onExpand?.(item);
-        this.state.autoExpanded.add(item);
-      }
-
-      const length = children.length;
-      for (let i = 0; i < length; i++) {
-        autoExpand(children[i], currentDepth + 1);
-      }
-    };
-
-    const roots = this.props.getRoots();
-    const length = roots.length;
-    if (this.props.autoExpandAll) {
-      for (let i = 0; i < length; i++) {
-        autoExpand(roots[i], 0);
-      }
-    } else if (length != 0) {
-      autoExpand(roots[0], 0);
-
-      if (initiallyExpanded) {
-        for (let i = 1; i < length; i++) {
-          if (initiallyExpanded(roots[i])) {
-            autoExpand(roots[i], 0);
-          }
-        }
-      }
-    }
-  };
-
-  _preventArrowKeyScrolling = (e: React.KeyboardEvent) => {
-    switch (e.key) {
-      case "ArrowUp":
-      case "ArrowDown":
-      case "ArrowLeft":
-      case "ArrowRight":
-        this._preventEvent(e);
-        break;
-    }
-  };
-
-  _preventEvent(e: React.KeyboardEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.nativeEvent) {
-      if (e.nativeEvent.preventDefault) {
-        e.nativeEvent.preventDefault();
-      }
-      if (e.nativeEvent.stopPropagation) {
-        e.nativeEvent.stopPropagation();
-      }
-    }
-  }
-
-  /**
-   * Perform a pre-order depth-first search from item.
-   */
-  _dfs(item: any, maxDepth = Infinity, traversal: DFSTraversalEntry[] = [], _depth = 0) {
-    traversal.push({ item, depth: _depth });
-
-    if (!this.props.isExpanded(item)) {
-      return traversal;
-    }
-
-    const nextDepth = _depth + 1;
-
-    if (nextDepth > maxDepth) {
-      return traversal;
-    }
-
-    const children = this.props.getChildren(item);
-    const length = children.length;
-    for (let i = 0; i < length; i++) {
-      this._dfs(children[i], maxDepth, traversal, nextDepth);
-    }
-
-    return traversal;
-  }
-
-  /**
-   * Perform a pre-order depth-first search over the whole forest.
-   */
-  _dfsFromRoots(maxDepth = Infinity) {
-    const traversal: DFSTraversalEntry[] = [];
-
-    const roots = this.props.getRoots();
-    const length = roots.length;
-    for (let i = 0; i < length; i++) {
-      this._dfs(roots[i], maxDepth, traversal);
-    }
-
-    return traversal;
-  }
-
-  /**
-   * Expands current row.
-   *
-   * @param {Object} item
-   * @param {Boolean} expandAllChildren
-   */
-  _onExpand = (item: any, expandAllChildren?: boolean) => {
-    if (this.props.onExpand) {
-      this.props.onExpand(item);
-
-      if (expandAllChildren) {
-        const children = this._dfs(item);
-        const length = children.length;
-        for (let i = 0; i < length; i++) {
-          this.props.onExpand(children[i].item);
-        }
-      }
-    }
-  };
-
-  /**
-   * Collapses current row.
-   *
-   * @param {Object} item
-   */
-  _onCollapse = (item: any) => {
-    if (this.props.onCollapse) {
-      this.props.onCollapse(item);
-    }
-  };
-
-  /**
-   * Sets the passed in item to be the focused item.
-   *
-   * @param {Object|undefined} item
-   *        The item to be focused, or undefined to focus no item.
-   */
-  _focus = (item: any, options: { preventAutoScroll?: boolean } = {}) => {
-    const { preventAutoScroll } = options;
-    if (item && !preventAutoScroll) {
-      this._scrollNodeIntoView(item);
-    }
-
-    if (this.props.active != undefined) {
-      this._activate(undefined);
-      const doc = this.treeRef.current && this.treeRef.current.ownerDocument;
-      if (this.treeRef.current !== doc?.activeElement) {
-        this.treeRef.current!.focus();
-      }
-    }
-
-    if (this.props.onFocus) {
-      this.props.onFocus(item);
-    }
-  };
-
-  /**
-   * Sets the passed in item to be the active item.
-   *
-   * @param {Object|undefined} item
-   *        The item to be activated, or undefined to activate no item.
-   */
-  _activate = (item: any) => {
-    if (this.props.onActivate) {
-      this.props.onActivate(item);
-    }
-  };
-
-  /**
-   * Sets the passed in item to be the focused item.
-   *
-   * @param {Object|undefined} item
-   *        The item to be scrolled to.
-   *
-   * @param {Object|undefined} options
-   *        An options object which can contain:
-   *          - dir: "up" or "down" to indicate if we should scroll the element
-   *                 to the top or the bottom of the scrollable container when
-   *                 the element is off canvas.
-   */
-  _scrollNodeIntoView = (item: any) => {
-    if (item !== undefined) {
-      const treeElement = this.treeRef.current;
-      const doc = treeElement && treeElement.ownerDocument;
-      const element = doc?.getElementById(this.props.getKey(item));
-
-      if (element) {
-        const { top, bottom } = element.getBoundingClientRect();
-        const closestScrolledParent = (node: HTMLElement | null): HTMLElement | null => {
-          if (node == null) {
-            return null;
-          }
-
-          if (node.scrollHeight > node.clientHeight) {
-            return node;
-          }
-          return closestScrolledParent(node.parentNode as HTMLElement);
-        };
-
-        const scrolledParentRect = treeElement?.getBoundingClientRect();
-        const isVisible =
-          !treeElement || (top >= scrolledParentRect!.top && bottom <= scrolledParentRect!.bottom);
-
-        if (isVisible) {
-          return;
-        }
-
-        element.scrollIntoView({ block: "center" });
-      }
-    }
-  };
-
-  /**
-   * Sets the state to have no focused item.
-   */
-  _onBlur = (e: React.FocusEvent<HTMLElement>) => {
-    if (this.props.active != undefined) {
-      const { relatedTarget } = e;
-      if (!this.treeRef.current!.contains(relatedTarget as any)) {
-        this._activate(undefined);
-      }
-    } else if (!this.props.preventBlur) {
-      this._focus(undefined);
-    }
-  };
-
-  /**
-   * Handles key down events in the tree's container.
-   *
-   * @param {Event} e
-   */
-  // eslint-disable-next-line complexity
-  _onKeyDown = (e: React.KeyboardEvent) => {
-    if (this.props.focused == null) {
-      return;
-    }
-
-    // Allow parent nodes to use navigation arrows with modifiers.
-    if (e.altKey || e.ctrlKey || e.shiftKey || e.metaKey) {
-      return;
-    }
-
-    this._preventArrowKeyScrolling(e);
-    const doc = this.treeRef.current && this.treeRef.current.ownerDocument;
-
-    switch (e.key) {
-      case "ArrowUp":
-        this._focusPrevNode();
-        return;
-
-      case "ArrowDown":
-        this._focusNextNode();
-        return;
-
-      case "ArrowLeft":
-        if (
-          this.props.isExpanded(this.props.focused) &&
-          this._nodeIsExpandable(this.props.focused)
-        ) {
-          this._onCollapse(this.props.focused);
-        } else {
-          this._focusParentNode();
-        }
-        return;
-
-      case "ArrowRight":
-        if (
-          this._nodeIsExpandable(this.props.focused) &&
-          !this.props.isExpanded(this.props.focused)
-        ) {
-          this._onExpand(this.props.focused);
-        } else {
-          this._focusNextNode();
-        }
-        return;
-
-      case "Home":
-        this._focusFirstNode();
-        return;
-
-      case "End":
-        this._focusLastNode();
-        return;
-
-      case "Enter":
-      case "NumpadEnter":
-      case " ":
-        if (this.treeRef.current === doc!.activeElement) {
-          this._preventEvent(e);
-          if (!this._areItemsEqual(this.props.active, this.props.focused)) {
-            this._activate(this.props.focused);
-          }
-        }
-        return;
-
-      case "Escape":
-        this._preventEvent(e);
-        if (this.props.active != undefined) {
-          this._activate(undefined);
-        }
-
-        if (this.treeRef.current !== doc!.activeElement) {
-          this.treeRef.current!.focus();
-        }
-    }
-  };
-
-  /**
-   * Sets the previous node relative to the currently focused item, to focused.
-   */
-  _focusPrevNode = () => {
-    // Start a depth first search and keep going until we reach the currently
-    // focused node. Focus the previous node in the DFS, if it exists. If it
-    // doesn't exist, we're at the first node already.
-
-    let prev;
-
-    const traversal = this._dfsFromRoots();
-    const length = traversal.length;
-    for (let i = 0; i < length; i++) {
-      const item = traversal[i].item;
-      if (this._areItemsEqual(item, this.props.focused)) {
-        break;
-      }
-      prev = item;
-    }
-    if (prev === undefined) {
-      return;
-    }
-
-    this._focus(prev);
-  };
-
-  /**
-   * Handles the down arrow key which will focus either the next child
-   * or sibling row.
-   */
-  _focusNextNode = () => {
-    // Start a depth first search and keep going until we reach the currently
-    // focused node. Focus the next node in the DFS, if it exists. If it
-    // doesn't exist, we're at the last node already.
-    const traversal = this._dfsFromRoots();
-    const length = traversal.length;
-    let i = 0;
-
-    while (i < length) {
-      if (this._areItemsEqual(traversal[i].item, this.props.focused)) {
-        break;
-      }
-      i++;
-    }
-
-    if (i + 1 < traversal.length) {
-      this._focus(traversal[i + 1].item);
-    }
-  };
-
-  /**
-   * Handles the left arrow key, going back up to the current rows'
-   * parent row.
-   */
-  _focusParentNode = () => {
-    const parent = this.props.getParent(this.props.focused!);
-    if (!parent) {
-      this._focusPrevNode();
-      return;
-    }
-
-    this._focus(parent);
-  };
-
-  _focusFirstNode = () => {
-    const traversal = this._dfsFromRoots();
-    this._focus(traversal[0].item);
-  };
-
-  _focusLastNode = () => {
-    const traversal = this._dfsFromRoots();
-    const lastIndex = traversal.length - 1;
-    this._focus(traversal[lastIndex].item);
-  };
-
-  _nodeIsExpandable = (item: any) => {
-    return this.props.isExpandable
-      ? this.props.isExpandable(item)
-      : !!this.props.getChildren(item).length;
-  };
-
-  render() {
-    const traversal = this._dfsFromRoots();
-    const { active, focused } = this.props;
-
-    const nodes = traversal.map((v, i) => {
-      const { item, depth } = v;
-      const key = this.props.getKey(item);
-      return (
-        <TreeNode<any>
-          // We make a key unique depending on whether the tree node is in active
-          // or inactive state to make sure that it is actually replaced and the
-          // tabbable state is reset.
-          key={`${key}-${this._areItemsEqual(active, item) ? "active" : "inactive"}`}
-          id={key}
-          index={i}
-          item={item}
-          depth={depth}
-          areItemsEqual={this.props.areItemsEqual}
-          shouldItemUpdate={this.props.shouldItemUpdate}
-          renderItem={this.props.renderItem}
-          focused={this._areItemsEqual(focused, item)}
-          active={this._areItemsEqual(active, item)}
-          expanded={this.props.isExpanded(item)}
-          isExpandable={this._nodeIsExpandable(item)}
-          onClick={(e: React.MouseEvent) => {
-            // We can stop the propagation since click handler on the node can be
-            // created in `renderItem`.
-            e.stopPropagation();
-
-            if (e.defaultPrevented) {
-              return;
-            }
-
-            // Since the user just clicked the node, there's no need to check if
-            // it should be scrolled into view.
-            this._focus(item, { preventAutoScroll: true });
-            if (this.props.isExpanded(item)) {
-              this.props.onCollapse?.(item);
-            } else {
-              this.props.onExpand?.(item);
-            }
-
-            // Focus should always remain on the tree container itself.
-            this.treeRef.current!.focus();
-          }}
-        />
-      );
-    });
-    const style = Object.assign({}, this.props.style || {});
-
-    return (
-      <div
-        className={`tree ${this.props.className ? this.props.className : ""}`}
-        ref={this.treeRef}
-        role="tree"
-        tabIndex={0}
-        onKeyDown={this._onKeyDown}
-        onKeyPress={this._preventArrowKeyScrolling}
-        onKeyUp={this._preventArrowKeyScrolling}
-        onFocus={({ nativeEvent }: React.FocusEvent) => {
-          if (focused || !nativeEvent || !this.treeRef.current) {
-            return;
-          }
-
-          // @ts-expect-error
-          const { explicitOriginalTarget } = nativeEvent;
-          // Only set default focus to the first tree node if the focus came
-          // from outside the tree (e.g. by tabbing to the tree from other
-          // external elements).
-          if (
-            explicitOriginalTarget !== this.treeRef.current &&
-            !this.treeRef.current.contains(explicitOriginalTarget)
-          ) {
-            this._focus(traversal[0].item);
-          }
-        }}
-        onBlur={this._onBlur}
-        aria-label={this.props.label}
-        aria-labelledby={this.props.labelledby}
-        aria-activedescendant={focused && this.props.getKey(focused)}
-        style={style}
-      >
-        {nodes}
-      </div>
-    );
-  }
-}
