@@ -1,6 +1,8 @@
 name: Run test suites
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "0 4 * * *"
 
 env:
   RECORD_REPLAY_API_KEY: rwk_67oZlwB0FjMlwawb02pYRB4Fenf0YSD9xIGzQrMEnB3
